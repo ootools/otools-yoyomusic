@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>悠悠乐听 (YoYoMusic) · OTools 插件</title>
+    <!--
+      OTools 宿主桥占位（Task 2 接入）：宿主注入 window.otools（兼容 window.utools），
+      插件运行时据此探测能力并降级。本页按查询参数区分三路由：
+      ?lyrics=1 桌面歌词悬浮窗 / ?main=1 独立主窗口 / 默认 panel 页。
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
