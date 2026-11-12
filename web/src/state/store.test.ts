@@ -209,15 +209,16 @@ describe('queueOps（光标跟随）', () => {
     expect(useStore.getState().library.playlists.default.trackIds).toEqual(['t1', 't2', 't3']);
   });
 
-  it('append：追加到末尾；已存在→移到末尾且游标跟随', () => {
-    useStore.getState().importTracks([{ id: 't4', path: 'C:\\m\\d.mp3', title: 'D', durationMs: 200000 }]);
-    useStore.getState().playTrack('t1'); // [t1,t2,t3,t4] cursor=0
-    useStore.getState().queueOps.append('t4'); // t4 已在末尾 → 不变
-    expect(useStore.getState().library.playlists.default.trackIds).toEqual(['t1', 't2', 't3', 't4']);
-    useStore.getState().queueOps.append('t1'); // 播放中的 t1 移到末尾，游标跟随
-    const pl = useStore.getState().library.playlists.default;
-    expect(pl.trackIds).toEqual(['t2', 't3', 't4', 't1']);
-    expect(pl.currentIndex).toBe(3);
+  it('append：已在队列→静默跳过队列不变（Go AddToPlaylist 语义，审查修正）', () => {
+    useStore.getState().playTrack('t1'); // [t1,t2,t3] cursor=0
+    useStore.getState().queueOps.append('t3'); // t3 已在队列 → 原样返回
+    let pl = useStore.getState().library.playlists.default;
+    expect(pl.trackIds).toEqual(['t1', 't2', 't3']);
+    expect(pl.currentIndex).toBe(0); // 正在播放的 t1 不被挪到队尾
+    const pid = useStore.getState().addPlaylist('q'); // 空歌单
+    useStore.getState().queueOps.append('t1'); // 不在队列 → 追加末尾
+    pl = useStore.getState().library.playlists[pid];
+    expect(pl.trackIds).toEqual(['t1']);
   });
 
   it('move：移动播放游标锚定曲目时游标跟着走（Go MoveTrackUp/Down）', () => {
@@ -246,6 +247,19 @@ describe('queueOps（光标跟随）', () => {
     expect(useStore.getState().library.playlists.default.trackIds).toEqual(['t1', 't2', 't3']);
     useStore.getState().queueOps.move('t3', 1);
     expect(useStore.getState().library.playlists.default.trackIds).toEqual(['t1', 't2', 't3']);
+  });
+
+  it('move：首元素 delta=1 与末元素 delta=-1 光标跟随（计划 Task 4 Step 1 点名对）', () => {
+    useStore.getState().playTrack('t1'); // [t1,t2,t3] cursor=0
+    useStore.getState().queueOps.move('t1', 1); // 首元素 delta=1 下移
+    let pl = useStore.getState().library.playlists.default;
+    expect(pl.trackIds).toEqual(['t2', 't1', 't3']);
+    expect(pl.currentIndex).toBe(1); // 游标跟随播放中的 t1
+    useStore.getState().playTrack('t3'); // t3 现在在末尾 idx2
+    useStore.getState().queueOps.move('t3', -1); // 末元素 delta=-1 上移
+    pl = useStore.getState().library.playlists.default;
+    expect(pl.trackIds).toEqual(['t2', 't3', 't1']);
+    expect(pl.currentIndex).toBe(1); // 游标跟随播放中的 t3
   });
 });
 

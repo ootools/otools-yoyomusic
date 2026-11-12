@@ -107,8 +107,8 @@ describe('queueAppend', () => {
     expect(queueAppend(['a', 'b'], 'c')).toEqual(['a', 'b', 'c']);
   });
 
-  it('已存在→移动到末尾（不重复）', () => {
-    expect(queueAppend(['a', 'b', 'c'], 'a')).toEqual(['b', 'c', 'a']);
+  it('已存在→原样返回（Go AddToPlaylist 对重复静默跳过，审查修正）', () => {
+    expect(queueAppend(['a', 'b', 'c'], 'a')).toEqual(['a', 'b', 'c']);
     expect(queueAppend(['a', 'b'], 'b')).toEqual(['a', 'b']);
   });
 

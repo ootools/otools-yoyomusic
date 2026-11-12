@@ -94,10 +94,13 @@ export function queueInsertAfter(queue: string[], anchorId: string | null, id: s
   return out;
 }
 
-/** "加到队列末尾"：已存在 → 移动到末尾（不重复）。纯函数。 */
+/**
+ * "加到队列末尾"：已存在 → 静默跳过（对齐 Go AddToPlaylist :459-470 对重复的
+ * no-op，审查修正：初版误为移到末尾）。纯函数。
+ */
 export function queueAppend(queue: string[], id: string): string[] {
-  if (!id) return queue.slice();
-  return [...queue.filter((x) => x !== id), id];
+  if (!id || queue.includes(id)) return queue.slice();
+  return [...queue, id];
 }
 
 /**
