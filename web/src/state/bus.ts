@@ -8,8 +8,10 @@
  * 双通道按存在性择优（spec §13 风险表：BroadcastChannel 在 otools-plugin:// 下
  * 可用性未验证，localStorage storage 事件为 daymark 先例兜底）：
  *  1. `BroadcastChannel('yoyomusic')` 可用 → postMessage / onmessage；
- *  2. 否则 localStorage `storage` 事件兜底：post 写 key `__yoyomusic.bus`
- *     （storage 事件只在**其他**窗口触发，天然不含自身回声）。
+ *  2. 否则 localStorage `storage` 事件兜底：post 写 key `__yoyomusic.bus`，
+ *     载荷为单调递增序号信封 `{ n, m }`（HTML 规范：同值 setItem 不派发
+ *     storage 事件，裸写会让恒定心跳在首条后全丢；storage 事件只在**其他**
+ *     窗口触发，天然不含自身回声）。
  *
  * 注意：总线不向发送者自己回送（两条通道的真实语义都如此）；测试用的内存版
  * bus 会回送，消费方（leader）须过滤 from===自身的总线回声。
@@ -83,7 +85,14 @@ export function createBus(): Bus {
     };
   }
 
-  // localStorage 兜底：post = 写信箱 key；收 = storage 事件（仅其他窗口触发）
+  // localStorage 兜底：post = 写信箱 key；收 = storage 事件（仅其他窗口触发）。
+  // 写入值用单调递增序号信封 { n, m }：HTML 规范规定同值 setItem 不在其他文档
+  // 派发 storage 事件——协议里 hello 心跳/重申 claim 等消息内容恒定，裸写会在
+  // 首条之后全部丢达（跟随者 6s 超时误接管 → 周期性选举振荡击穿单写者规则）。
+  // 每次写入的信封串必变 → storage 事件必发。序号取页面级随机起点：跨页面
+  // 同内容消息（n 相同 + m 相同）也几乎不可能写出同值串。
+  let seq = Math.floor(Math.random() * 1e12);
+
   window.addEventListener('storage', (event: StorageEvent) => {
     if (event.key !== BUS_KEY || event.newValue === null) return;
     let parsed: unknown;
@@ -92,14 +101,17 @@ export function createBus(): Bus {
     } catch {
       return; // 坏消息丢弃
     }
-    if (!parsed || typeof parsed !== 'object' || typeof (parsed as BusMsg).t !== 'string') return;
-    deliver(parsed as BusMsg);
+    if (!parsed || typeof parsed !== 'object') return;
+    const { n, m } = parsed as { n?: unknown; m?: unknown };
+    if (typeof n !== 'number' || !m || typeof m !== 'object') return;
+    if (typeof (m as BusMsg).t !== 'string') return; // 信封内必须是合法 BusMsg
+    deliver(m as BusMsg);
   });
 
   return {
     post(m: BusMsg): void {
       try {
-        window.localStorage.setItem(BUS_KEY, JSON.stringify(m));
+        window.localStorage.setItem(BUS_KEY, JSON.stringify({ n: ++seq, m }));
       } catch {
         // 配额满/序列化失败：总线消息（JSON 数据）极小，失败即丢弃
       }
