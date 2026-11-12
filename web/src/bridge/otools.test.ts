@@ -317,6 +317,19 @@ describe('listDirectoryRecursive', () => {
     expect(files.map((f) => f.path)).toEqual(['D:/music/a.mp3']);
   });
 
+  it('根目录 listHostDir 失败 → reject（不吞成空数组，Task 6 授权点）', async () => {
+    const listHostDir = vi.fn(async () => {
+      throw new Error('access denied');
+    });
+    installFakeHost({ otools: { listHostDir } });
+    await expect(listDirectoryRecursive('D:/locked')).rejects.toThrow('access denied');
+  });
+
+  it('根目录返回非数组（宿主异常响应）→ reject', async () => {
+    installFakeHost({ otools: { listHostDir: async () => undefined } });
+    await expect(listDirectoryRecursive('D:/music')).rejects.toThrow();
+  });
+
   it('无宿主 → reject "no-host"', async () => {
     installFakeHost({ otools: null, utools: null, tauriInvoke: undefined });
     delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;

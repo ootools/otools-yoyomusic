@@ -188,7 +188,9 @@ const dirKeyOf = (path: string): string => path.replace(/[\\/]+$/, '').toLowerCa
 
 /**
  * listHostDir 递归展开（spec §10.2 曲库扫描）：只列文件（{path,size}[]）。
- * 深度上限 8 层 + 已访集合防环；单个子目录读取失败跳过不炸整体。
+ * 深度上限 8 层 + 已访集合防环；单个**子目录**读取失败跳过不炸整体；
+ * **根目录**读取失败 reject（Task 6 授权点：调用方要区分"扫描失败"与
+ * "空目录"，吞成 [] 会让导入静默丢库）。
  */
 export async function listDirectoryRecursive(
   dir: string,
@@ -202,7 +204,7 @@ export async function listDirectoryRecursive(
   const files: { path: string; size: number }[] = [];
   const visited = new Set<string>();
 
-  const walk = async (path: string, depth: number): Promise<void> => {
+  const walk = async (path: string, depth: number, isRoot: boolean): Promise<void> => {
     if (depth > MAX_LIST_DEPTH) return;
     const key = dirKeyOf(path);
     if (!key || visited.has(key)) return;
@@ -211,22 +213,26 @@ export async function listDirectoryRecursive(
     let entries: OToolsHostDirEntry[];
     try {
       entries = await listHostDir(path);
-    } catch {
-      return; // 读不了的子目录：跳过，不让整个扫描失败
+    } catch (err) {
+      if (isRoot) throw err; // 根目录失败：整体 reject（调用方按失败处理）
+      return; // 子目录失败：跳过，不让整个扫描失败
     }
-    if (!Array.isArray(entries)) return;
+    if (!Array.isArray(entries)) {
+      if (isRoot) throw new Error('list-host-dir-bad-response');
+      return;
+    }
 
     for (const entry of entries) {
       if (!entry || typeof entry.path !== 'string' || !entry.path) continue;
       if (entry.kind === 'directory') {
-        await walk(entry.path, depth + 1);
+        await walk(entry.path, depth + 1, false);
         continue;
       }
       files.push({ path: entry.path, size: Number(entry.size) || 0 });
     }
   };
 
-  await walk(dir, 1);
+  await walk(dir, 1, true);
   return files;
 }
 

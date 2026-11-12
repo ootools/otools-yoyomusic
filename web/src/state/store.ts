@@ -17,6 +17,9 @@
  * resume（Task 3 审查遗留点）：形状 Record<trackId, ms>，对齐 persist 快照的
  * `resume` 顶层键 —— 显式 null=清空（clearResume()）、undefined=无（persist
  * flushPosition 快照缺键时跳过，不冲掉既有恢复点）。
+ *
+ * setTrackMeta（Task 6 授权点）：未知 id 兜底建行时同时补进 default 歌单，
+ * 维持"default=全库"不变量（否则爬虫竞态建的行会从曲库视图里消失）。
  */
 
 import { create } from 'zustand';
@@ -294,9 +297,16 @@ export const useStore = create<StoreState>()((set, get) => {
       set((s) => {
         const existing = s.library.tracks[id];
         if (!existing) {
-          // 未建行先到元数据（爬虫竞态兜底）：按缺省建行。
+          // 未建行先到元数据（爬虫竞态兜底）：按缺省建行，并补进 default
+          // （维持"default=全库"不变量，Task 4 审查遗留点 / Task 6 授权点）。
+          const def = s.library.playlists.default;
+          const trackIds = def && !def.trackIds.includes(id) ? [...def.trackIds, id] : def?.trackIds;
           return {
-            library: { ...s.library, tracks: { ...s.library.tracks, [id]: normalizeTrack({ id, path: id, ...meta }) } },
+            library: {
+              ...s.library,
+              tracks: { ...s.library.tracks, [id]: normalizeTrack({ id, path: id, ...meta }) },
+              ...(trackIds && def ? { playlists: { ...s.library.playlists, default: { ...def, trackIds } } } : {}),
+            },
           };
         }
         return {

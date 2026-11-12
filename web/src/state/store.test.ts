@@ -114,6 +114,26 @@ describe('setTrackMeta / like', () => {
     expect(t.album).toBe('AL'); // 未给的字段不动
   });
 
+  it('未知 id 兜底建行 → 同时加入 default（default=全库 不变量，Task 6 授权点）', () => {
+    importThree();
+    useStore.getState().setTrackMeta('late-1', { title: '迟到的元数据', status: 'ok', durationMs: 123 });
+    const { library } = useStore.getState();
+    expect(library.tracks['late-1']).toMatchObject({
+      id: 'late-1',
+      path: 'late-1',
+      title: '迟到的元数据',
+      durationMs: 123,
+    });
+    expect(library.playlists.default.trackIds).toContain('late-1');
+  });
+
+  it('未知 id 兜底建行不重复追加 default（已存在行时只合并）', () => {
+    importThree();
+    const before = useStore.getState().library.playlists.default.trackIds.length;
+    useStore.getState().setTrackMeta('t1', { title: 'A2' });
+    expect(useStore.getState().library.playlists.default.trackIds.length).toBe(before);
+  });
+
   it('like 切换并返回新值', () => {
     importThree();
     expect(useStore.getState().like('t1')).toBe(true);
