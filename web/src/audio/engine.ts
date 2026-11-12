@@ -136,6 +136,8 @@ export class AudioEngine {
 
   // —— Web Audio 图（惰性；Task 16 冒烟覆盖）——
   private graph: AudioGraph | null = null;
+  /** 建链失败永久闩锁（审查非阻塞 #2）：构造抛过一次异常后不再重试，直控降级。 */
+  private graphFailed = false;
   private freqBuf = new Uint8Array(0);
   private waveBuf = new Uint8Array(0);
 
@@ -337,10 +339,13 @@ export class AudioEngine {
    * Task 16 冒烟覆盖：Web Audio 实链路（MediaElementSource→Gain→10×BiquadFilter
    * →Analyser→destination，spec §6.2/§6.3）。惰性建链：首次 play（用户手势内）
    * 或首次拉频谱帧时；环境无 AudioContext（jsdom/老宿主）或建链失败 → null，
-   * `<audio>` 直出，EQ/频谱降级但播放不炸。
+   * `<audio>` 直出，EQ/频谱降级但播放不炸。建链失败（构造抛异常）落
+   * graphFailed 永久闩锁：此后不再重试构造（避免每次 play/拉帧重复抛栈），
+   * 直接走直控降级。
    */
   private ensureGraph(): AudioGraph | null {
     if (this.graph) return this.graph;
+    if (this.graphFailed) return null; // 永久闩锁：直控降级
     const win = window as unknown as {
       AudioContext?: typeof AudioContext;
       webkitAudioContext?: typeof AudioContext;
@@ -374,6 +379,7 @@ export class AudioEngine {
       this.applyEQ();
       return this.graph;
     } catch {
+      this.graphFailed = true; // 永久闩锁（审查非阻塞 #2）：只尝试一次，直控降级
       return null; // 元素已绑定其他 context 等：降级 `<audio>` 直出
     }
   }

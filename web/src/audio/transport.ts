@@ -14,11 +14,14 @@
  * 建槽即挂 catch，预读失败不产生全局 unhandledrejection（消费方 resolve
  * 仍拿到原始错误）。
  *
- * blob: 前缀条目（浏览器降级约定，Task 2）：path 以 blob: 开头时直接作为
- * resolve 结果使用（无宿主读盘）；readBytes 对其走 fetch 读 Blob 字节。
+ * blob: 前缀条目（浏览器降级约定，Task 2）：path 以 blob: 开头时，先查桥接层
+ * File 注册表（otools.getFallbackFile）——命中用 File 重建**新** URL 返回
+ * （重播缺口修复：引擎按契约 revoke 消费过的 URL，重播必须重新建号；Task 7
+ * 审查非阻塞 #2），未命中原样返回（刷新后残留路径 → 元素 error 正常报错）；
+ * readBytes 对 blob: 条目走 fetch 读 Blob 字节。
  */
 
-import { readFileBytes } from '../bridge/otools';
+import { getFallbackFile, readFileBytes } from '../bridge/otools';
 
 export interface AudioTransport {
   /** 返回可直接给 `<audio src>` / fetch 的 URL */
@@ -81,7 +84,18 @@ export function createBlobTransport(): BlobTransport {
 
   return {
     async resolve(path) {
-      if (path.startsWith(BLOB_PREFIX)) return path; // 降级条目：本身就是 URL
+      if (path.startsWith(BLOB_PREFIX)) {
+        // 浏览器降级条目（Task 7 审查非阻塞 #2 重播缺口）：path 本身是桥接层
+        // 建的 blob: URL，而引擎换曲会按契约 revoke 它——重播该曲若原样返回
+        // 必然失效 → error → 误标 TrackBad。故先查桥接 File 注册表：命中则用
+        // File 重新 createObjectURL 返回**新 URL**（旧 URL 归引擎 revoke，重播
+        // 每次新建；新 URL 不回注册表——它是瞬态引擎所有）；未命中（如刷新后
+        // 残留路径）原样返回，由元素 error 事件正常报错。原注册表 URL 永不
+        // 被引擎经手，crawler readBytes 的 fetch(path) 始终有效。
+        const file = getFallbackFile(path);
+        if (file) return URL.createObjectURL(file);
+        return path;
+      }
       if (slot && slot.path === path) {
         const hit = slot;
         hit.consumed = true; // URL 归调用方（引擎）所有

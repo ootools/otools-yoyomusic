@@ -10,6 +10,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { getFallbackFile, registerFallbackFile, releaseFallbackFile } from '../bridge/otools';
 import { createBlobTransport } from './transport';
 
 /* ------------------------------------------------------------------ *
@@ -273,7 +274,7 @@ describe('prime 健壮性（Task 6 审查建议 #5/#6，Task 7 授权微修）',
 });
 
 describe('blob: 前缀条目（浏览器降级约定）', () => {
-  it('resolve 直接返回原 URL，无宿主读盘、不造新 Blob', async () => {
+  it('注册表未命中：resolve 原样返回原 URL，无宿主读盘、不造新 Blob', async () => {
     const { readHostFile } = installHost(() => '//uQxg==');
     const { captured } = stubObjectURL();
     const t = createBlobTransport();
@@ -294,6 +295,57 @@ describe('blob: 前缀条目（浏览器降级约定）', () => {
     const bytes = await t.readBytes('blob:mock-0');
     expect(fetchMock).toHaveBeenCalledWith('blob:mock-0');
     expect(Array.from(bytes)).toEqual([1, 2, 3]);
+  });
+});
+
+describe('降级条目重播（Task 7 审查非阻塞 #2：引擎 revoke 原 URL 后的重播缺口）', () => {
+  it('注册表命中：resolve 两次得到两个不同 blob: URL，都能 revoke，原注册表 URL 不动', async () => {
+    const { captured, revoked } = stubObjectURL();
+    const file = new File([new Uint8Array([1, 2, 3])], 'a.mp3', { type: 'audio/mpeg' });
+    registerFallbackFile('blob:picked-0', file);
+    const t = createBlobTransport();
+    try {
+      const u1 = await t.resolve('blob:picked-0');
+      const u2 = await t.resolve('blob:picked-0'); // 引擎已 revoke u1 后重播 → 每次重建新号
+      expect(u1).not.toBe(u2);
+      expect(u1.startsWith('blob:')).toBe(true);
+      expect(u2.startsWith('blob:')).toBe(true);
+      expect(captured).toHaveLength(2);
+
+      t.revoke(u1);
+      t.revoke(u2);
+      expect(revoked).toEqual([u1, u2]); // 引擎换曲 revoke 的正是每次新建的 URL
+      expect(revoked).not.toContain('blob:picked-0'); // 原始注册表 URL 永不归引擎经手
+      expect(getFallbackFile('blob:picked-0')).toBe(file); // 注册表仍命中：可无限重播
+    } finally {
+      releaseFallbackFile('blob:picked-0');
+    }
+  });
+
+  it('注册表未命中（如刷新后残留路径）：原样返回走元素 error，不造新 Blob、不触宿主', async () => {
+    const { readHostFile } = installHost(() => '//uQxg==');
+    const { captured } = stubObjectURL();
+    const t = createBlobTransport();
+
+    await expect(t.resolve('blob:stale-0')).resolves.toBe('blob:stale-0');
+    expect(captured).toHaveLength(0);
+    expect(readHostFile).not.toHaveBeenCalled();
+  });
+
+  it('宿主模式不受影响：普通路径仍走 readFileBytes 整读（注册表非空也不干扰）', async () => {
+    const { readHostFile } = installHost(() => '//uQxg==');
+    const { captured } = stubObjectURL();
+    registerFallbackFile('blob:picked-0', new File(['x'], 'a.mp3', { type: 'audio/mpeg' }));
+    const t = createBlobTransport();
+    try {
+      const url = await t.resolve('D:/m/a.mp3');
+      expect(url).toBe('blob:mock-0');
+      expect(readHostFile).toHaveBeenCalledWith('D:/m/a.mp3');
+      expect(captured[0]?.blob.size).toBe(4);
+      expect(captured[0]?.blob.type).toBe('audio/mpeg');
+    } finally {
+      releaseFallbackFile('blob:picked-0');
+    }
   });
 });
 

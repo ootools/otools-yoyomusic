@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   closePluginWindows,
   detectHost,
+  getFallbackFile,
   isCustomWindow,
   listDirectoryRecursive,
   loadPersisted,
@@ -11,6 +12,8 @@ import {
   pickAudioFiles,
   pickDirectory,
   readFileBytes,
+  registerFallbackFile,
+  releaseFallbackFile,
   savePersisted,
   showPanelWindow,
 } from './otools';
@@ -371,7 +374,7 @@ describe('pickAudioFiles', () => {
     await expect(pickAudioFiles()).resolves.toBeNull();
   });
 
-  it('浏览器降级：注入 input[type=file]，change 后返回 blob: 前缀 objectURL', async () => {
+  it('浏览器降级：注入 input[type=file]，change 后返回 blob: 前缀 objectURL 并登记 File 注册表', async () => {
     installFakeHost({ otools: null, utools: null });
     const created: string[] = [];
     const fakeUrl = (URL as unknown as { createObjectURL?: unknown }).createObjectURL;
@@ -395,9 +398,22 @@ describe('pickAudioFiles', () => {
       const picked = await promise;
       expect(picked).toEqual(['blob:mock-0', 'blob:mock-1']);
       expect(picked?.every((p) => p.startsWith('blob:'))).toBe(true);
+      // 重播缺口修复（Task 7 审查非阻塞 #2）：blobUrl → File 句柄入注册表
+      expect(getFallbackFile('blob:mock-0')?.name).toBe('a.mp3');
+      expect(getFallbackFile('blob:mock-1')?.name).toBe('b.wav');
     } finally {
       (URL as unknown as { createObjectURL?: unknown }).createObjectURL = fakeUrl;
+      releaseFallbackFile('blob:mock-0');
+      releaseFallbackFile('blob:mock-1');
     }
+  });
+
+  it('File 注册表：未登记路径 → undefined；release 后查不到', () => {
+    expect(getFallbackFile('blob:none-0')).toBeUndefined();
+    registerFallbackFile('blob:reg-0', new File(['x'], 'c.mp3'));
+    expect(getFallbackFile('blob:reg-0')?.name).toBe('c.mp3');
+    releaseFallbackFile('blob:reg-0');
+    expect(getFallbackFile('blob:reg-0')).toBeUndefined();
   });
 
   it('浏览器降级：cancel 事件 → null', async () => {

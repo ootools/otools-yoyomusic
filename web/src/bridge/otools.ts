@@ -255,6 +255,35 @@ const normalizeDialogPaths = (result: unknown): string[] | null => {
 };
 
 /**
+ * 浏览器降级 File 句柄注册表（Task 7 审查非阻塞 #2：重播缺口）。
+ *
+ * 降级模式选出的"path"就是 objectURL（blob: 前缀）。播放引擎换曲会按
+ * transport 契约 revoke 消费过的 URL——若重播该曲，原 URL 已失效，会走
+ * 元素 error 被误标 TrackBad。故这里保留 blobUrl → File 句柄映射：
+ * transport.resolve 对 blob: path 先查注册表，命中则用 File **重新**
+ * createObjectURL 返回新 URL（旧 URL 归引擎 revoke，重播每次新建），
+ * 未命中（刷新后残留路径）原样返回走 error 正常报错。
+ *
+ * File 是磁盘引用不是全量内存，注册表随页面生命周期驻留可接受。
+ */
+const fallbackFiles = new Map<string, File>();
+
+/** 查降级 File 句柄（transport.resolve 重建 URL 用）；未登记返回 undefined。 */
+export function getFallbackFile(path: string): File | undefined {
+  return fallbackFiles.get(path);
+}
+
+/** 登记降级 File 句柄（pickViaFileInput 建号后调用；测试可播种）。 */
+export function registerFallbackFile(path: string, file: File): void {
+  fallbackFiles.set(path, file);
+}
+
+/** 移除降级 File 句柄（对称 API；测试清理用）。 */
+export function releaseFallbackFile(path: string): void {
+  fallbackFiles.delete(path);
+}
+
+/**
  * 浏览器降级：input[type=file multiple] 选文件 → objectURL（blob: 前缀条目，
  * Task 6 据此跳过路径重解析）。cancel 或未选 → null。
  */
@@ -280,7 +309,13 @@ const pickViaFileInput = (): Promise<string[] | null> => {
         finish(null);
         return;
       }
-      finish(files.map((file) => URL.createObjectURL(file)));
+      finish(
+        files.map((file) => {
+          const url = URL.createObjectURL(file);
+          registerFallbackFile(url, file); // 重播缺口修复：句柄入注册表（见 fallbackFiles 注）
+          return url;
+        }),
+      );
     });
     input.addEventListener('cancel', () => finish(null));
 
