@@ -78,6 +78,11 @@ export function decodeUtf16(b: Uint8Array): string {
   return new TextDecoder(le ? 'utf-16le' : 'utf-16be').decode(b.subarray(start));
 }
 
+/** UTF-16BE 无 BOM（ID3 enc=2 的规范形态，ID3v2.4 §4：enc 2 恒为大端、不带 BOM）。 */
+export function decodeUtf16be(b: Uint8Array): string {
+  return new TextDecoder('utf-16be').decode(b);
+}
+
 // ---------- Vorbis 注释（FLAC VORBIS_COMMENT 块 / OGG comment 头共用） ----------
 
 /**

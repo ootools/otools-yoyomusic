@@ -27,7 +27,11 @@ export function parseFlac(b: Uint8Array): ParsedMeta {
     } else if (type === 4) {
       applyComments(out, readVorbisComments(b, body, body + len));
     } else if (type === 6) {
-      out.coverBytes = parseFlacPicture(b.subarray(body, body + len)).data;
+      try {
+        out.coverBytes = parseFlacPicture(b.subarray(body, body + len)).data;
+      } catch {
+        // 坏封面只丢封面，标签/时长照常（与 ogg 侧 METADATA_BLOCK_PICTURE 同语义）
+      }
     }
     off = body + len;
     if (last) break;

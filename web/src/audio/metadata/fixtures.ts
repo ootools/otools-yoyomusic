@@ -185,6 +185,12 @@ export function mp3UsltApic(): Uint8Array {
   return concat(tag, mp3Frame());
 }
 
+/** ID3 enc=2（无 BOM UTF-16BE，ID3v2.4 §4）：TIT2 "AB" → 应解出 "AB" 而非按 LE 误读的 "䄀䈀"。 */
+export function mp3Utf16be(): Uint8Array {
+  const tag = id3v24Tag([id3v24Frame('TIT2', concat([0x02], [0x00, 0x41, 0x00, 0x42]))]);
+  return concat(tag, mp3Frame());
+}
+
 /** ID3v2.3：u32 帧尺寸（TALB 内容 130 字节 ≥ 128，钉住非 syncsafe 读法）。 */
 export function mp3Id3v23(): Uint8Array {
   const tag = id3v23Tag([
@@ -266,6 +272,24 @@ export function fullFlac(): Uint8Array {
 /** 截断的块头 → 不抛 → unknown。 */
 export function corruptFlac(): Uint8Array {
   return concat(ascii('fLaC'), [0x00, 0x00]);
+}
+
+/** PICTURE 块内部 dataLen=999 越界（坏封面）：封面应丢弃，标签/时长照常。 */
+export function flacBadPicture(): Uint8Array {
+  const stream = flacStreaminfo();
+  const vc = vorbisComments([['TITLE', 'Bad Pic Song']]);
+  const pic = concat(
+    u32be(3), u32be(9), ascii('image/png'),
+    u32be(0), // 空描述
+    u32be(0), u32be(0), u32be(0), u32be(0),
+    u32be(999), // dataLen 越界
+  );
+  return concat(
+    ascii('fLaC'),
+    concat([0x00], u24be(stream.length), stream),
+    concat([0x04], u24be(vc.length), vc),
+    concat([0x80 | 0x06], u24be(pic.length), pic),
+  );
 }
 
 // ---------- OGG ----------

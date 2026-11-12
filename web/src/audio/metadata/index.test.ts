@@ -18,12 +18,14 @@ import {
   corruptMp4,
   corruptOgg,
   corruptWav,
+  flacBadPicture,
   flacPictureBlock,
   fullFlac,
   fullOgg,
   listInfoWav,
   mp3Id3v23,
   mp3UsltApic,
+  mp3Utf16be,
   mp4With64bit,
   taggedMp3,
   untaggedMp3,
@@ -67,6 +69,12 @@ describe('parseMetadata: mp3', () => {
     expect(Array.from(m.coverBytes ?? [])).toEqual(Array.from(bigPng()));
   });
 
+  it('ID3 enc=2 无 BOM UTF-16BE：按大端解出 "AB"（而非按 LE 误读 "䄀䈀"）', () => {
+    const m = parseMetadata(mp3Utf16be(), 'be.mp3');
+    expect(m.kind).toBe('mp3');
+    expect(m.title).toBe('AB');
+  });
+
   it('ID3v2.3：u32 帧尺寸读法（TALB 130 字节）', () => {
     const m = parseMetadata(mp3Id3v23(), 'old.mp3');
     expect(m.kind).toBe('mp3');
@@ -94,6 +102,14 @@ describe('parseMetadata: flac', () => {
     expect(m.durationMs).toBe(30000);
     expect(m.lyricsText).toBe('[00:01]flac歌词');
     expect(Array.from(m.coverBytes ?? [])).toEqual(Array.from(PNG_PREFIX));
+  });
+
+  it('corrupt PICTURE（dataLen 越界）→ 只丢封面，标签/时长照常', () => {
+    const m = parseMetadata(flacBadPicture(), 'bp.flac');
+    expect(m.kind).toBe('flac');
+    expect(m.title).toBe('Bad Pic Song');
+    expect(m.durationMs).toBe(30000);
+    expect(m.coverBytes).toBeUndefined();
   });
 
   it('corrupt（截断块头）→ unknown 不抛', () => {
@@ -233,8 +249,8 @@ describe('parseMetadata: 嗅探与防御', () => {
 
   it('模糊截断：合法样本在任意位置截断一律不抛', () => {
     const samples = [
-      taggedMp3(), xingMp3(), untaggedMp3(), mp3UsltApic(), mp3Id3v23(),
-      fullFlac(), fullOgg(), basicWav(), listInfoWav(), basicMp4(), mp4With64bit(),
+      taggedMp3(), xingMp3(), untaggedMp3(), mp3UsltApic(), mp3Utf16be(), mp3Id3v23(),
+      fullFlac(), flacBadPicture(), fullOgg(), basicWav(), listInfoWav(), basicMp4(), mp4With64bit(),
     ];
     for (const s of samples) {
       for (const cut of [1, 3, 7, 12, 21, 30, Math.floor(s.length / 2), s.length - 1]) {

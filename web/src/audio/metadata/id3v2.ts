@@ -2,7 +2,7 @@
  * ID3v2.3 / ID3v2.4 标签解析（mp3.ts 专用子模块，不算独立格式解析器）。
  * 只取 TIT2/TPE1/TALB/USLT/APIC；压缩/加密/unsynchronisation 帧一律安全跳过不实现。
  */
-import { decodeLatin1, decodeUtf16, decodeUtf8, hasBytes, syncsafe32, u16be, u32be, type ParsedMeta } from './bytes';
+import { decodeLatin1, decodeUtf16, decodeUtf16be, decodeUtf8, hasBytes, syncsafe32, u16be, u32be, type ParsedMeta } from './bytes';
 
 export interface Id3Tags extends ParsedMeta {
   /** 标签总长结尾（含 padding），即音频数据起始偏移。 */
@@ -51,11 +51,12 @@ export function parseId3v2(b: Uint8Array): Id3Tags {
   return out;
 }
 
-/** 按 ID3 编码字节解码文本（0=ISO-8859-1，1=UTF-16 w/BOM，2=UTF-16BE，3=UTF-8）。 */
+/** 按 ID3 编码字节解码文本（0=ISO-8859-1，1=UTF-16 w/BOM，2=UTF-16BE 无 BOM，3=UTF-8）。 */
 function decodeText(b: Uint8Array, enc: number): string {
   if (enc === 0) return decodeLatin1(b);
+  if (enc === 2) return decodeUtf16be(b); // enc=2 规范无 BOM，恒大端（ID3v2.4 §4）
   if (enc === 3) return decodeUtf8(b);
-  return decodeUtf16(b);
+  return decodeUtf16(b); // enc=1：按 BOM 定字节序
 }
 
 /** 文本帧：enc(1) + 文本（带终结符，解码到首个终结符为止）。 */
