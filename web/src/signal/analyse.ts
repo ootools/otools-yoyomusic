@@ -10,12 +10,15 @@
  *    bin（foldBands 对它们读单 bin 而非读出空带），强行撑开会把整个显示压进左三分之一。
  *  - foldBands：带内均值；getByteFrequencyData 为 0..255 字节域，除以 255 归一到 0..1。
  *  - normalizeBands：运行峰值 max(framePeak, peak×0.94/帧, floor 1e-4) 抗泵动，再以
- *    log1p(r*9)/log(10) 压缩响端、让底部的安静细节可见（Go fft.go:193 同式）。
+ *    log1p(r*9)/log(10) 压缩响端、让底部的安静细节可见（Go fft.go:222 同式）。
  *  - computeLevel：RMS×3.2 clamp 0..1（Go levelGain=3.2：语音/音乐远低于满幅，
  *    不抬升则电平表几乎不动）。RMS 取降采样后的 256 点，与示波器所见一致（对齐 Go）。
  *  - computeBeat：<150Hz 对应低频带能量超过自身滚动均值（EMA 0.92/0.08）×1.35 即
- *    onset——snap 上升、其后 exp(-dt*6.5) 平滑衰减，正是 kick 的形状（衰减率 6.5
- *    与 SignalEngine beatPulse 同率）。
+ *    onset——snap 上升、其后 exp(-dt*7) 平滑衰减（Go fft.go:306），正是 kick 的形状；
+ *    dt≤0 或 >0.25 时替换为 1/30（Go fft.go:184-186），不冻结、不爆衰减。
+ *    节拍吃**归一化前**的折带幅值（Go fft.go:287-289 / tauri spectrum.ts:56 同口径）：
+ *    归一化域受全局运行峰值耦合 + log1p 压缩，bass≈帧峰值时 EMA 恒贴 1，1.35×
+ *    永过不了——低频主导曲目 beat 死区。
  *  - createAnalyserPipeline：每帧 getByteFrequencyData/getByteTimeDomainData →
  *    fold/normalize/level/beat → SignalFrame，供 Task 15 接线；jsdom 无
  *    AnalyserNode，类型仅作输入约束，测试用最小 stub。
@@ -30,7 +33,7 @@ const PEAK_DECAY = 0.94; // 运行峰值每帧衰减（Go peakDecay）
 const PEAK_FLOOR = 1e-4; // 峰值下限：安静段不被放大成噪声
 const BASS_HZ = 150; // 以下算"bass"，驱动节拍（Go bassHz）
 const BEAT_RATIO = 1.35; // bass 高出自身均值的倍数阈值（Go beatRatio）
-const BEAT_DECAY = 6.5; // 无峰帧 beat 衰减速率（与 SignalEngine beatPulse 同率）
+const BEAT_DECAY = 7; // 无峰帧 beat 衰减速率（Go fft.go:306：a.beat *= exp(-dt*7)）
 const LEVEL_GAIN = 3.2; // RMS 抬升（Go levelGain）
 
 /** 一帧信号（bands 0..1 低→高、wave -1..1、level 0..1、beat 0..1）。 */
@@ -140,7 +143,10 @@ const BASS_BANDS = Math.max(
 
 /**
  * 节拍检测：低频带均值 vs 滚动均值 EMA(0.92/0.08)×1.35。超过即 onset——
- * snap 上升（钳 1）；无峰帧按 exp(-dt*6.5) 平滑衰减，kick 的形状。
+ * snap 上升（钳 1）；无峰帧按 exp(-dt*7) 平滑衰减（Go fft.go:306），kick 的形状。
+ * dt≤0 或 >0.25 时替换为 1/30（Go fft.go:184-186），不冻结也不爆衰减。
+ * 输入应为**归一化前**的折带幅值（管线传 rawBands；Go/tauri 两个移植源都吃
+ * 原始幅值——归一化域会造成低频主导死区，见 analyse.test.ts 回归测试）。
  * `st` 为调用方持有的节拍状态（EMA 初始 0 时首帧直接落底，不触发 onset）。
  */
 export function computeBeat(bands: Float32Array, st: { ema: number; pulse: number }, dt: number): number {
@@ -155,7 +161,7 @@ export function computeBeat(bands: Float32Array, st: { ema: number; pulse: numbe
   const onset = st.ema > 1e-5 && bass > threshold ? (bass - threshold) / threshold : 0;
 
   // onset 吸附上升、其后平滑衰减——kick 的形状。
-  const step = Math.min(Math.max(dt, 0), 0.25);
+  const step = dt > 0 && dt <= 0.25 ? dt : 1 / 30;
   st.pulse = onset > 0 ? Math.min(1, onset) : st.pulse * Math.exp(-step * BEAT_DECAY);
   return st.pulse;
 }
@@ -200,7 +206,10 @@ export function createAnalyserPipeline(analyser: AnalyserNode): AnalyserPipeline
       downsampleWave(waveBuf, waveBytes);
       for (let i = 0; i < WAVE_SAMPLES; i += 1) wave[i] = (waveBytes[i] - 128) / 128;
       const level = computeLevel(waveBytes);
-      const beat = computeBeat(bands, beatState, dt);
+      // beat 吃**归一化前**的折带幅值（Go fft.go:287-289 / tauri spectrum.ts:56 同口径）。
+      // 归一化域受全局运行峰值耦合 + log1p 压缩：bass≈帧峰值时 EMA 恒贴 1，
+      // 1.35× 阈值永过不了——低频主导曲目 beat 死区（见回归测试）。
+      const beat = computeBeat(rawBands, beatState, dt);
 
       return { bands, wave, level, beat };
     },

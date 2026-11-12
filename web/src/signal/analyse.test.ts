@@ -5,10 +5,11 @@
  *  - bandEdges：40Hz..min(16000, nyquist) 按**频率**对数分边（非按 bin），长 BAND_COUNT+1；
  *  - foldBands：带内均值（字节域 /255 → 0..1），单 bin 突起落对应带；
  *  - normalizeBands：运行峰值 max(framePeak, peak×0.94, 1e-4) + log1p(r*9)/log(10) 压缩
- *    （Go fft.go:193 `a.bandPeak = math.Max(framePeak, a.bandPeak*peakDecay)` —— 峰值只在
+ *    （Go fft.go:222 `a.bandPeak = math.Max(framePeak, a.bandPeak*peakDecay)` —— 峰值只在
  *    输入回落时衰减，持续等值输入不泵降，故"恒定输入后 0.47"用回落帧触发）；
  *  - computeLevel：RMS×3.2 clamp 0..1（字节域 128 居中）；
- *  - computeBeat：<150Hz 对应低频带 vs EMA(0.92/0.08)×1.35 → onset snap、exp(-dt*6.5) 衰减；
+ *  - computeBeat：<150Hz 对应低频带 vs EMA(0.92/0.08)×1.35 → onset snap、exp(-dt*7) 衰减
+ *    （Go fft.go:306）；dt≤0 或 >0.25 → 1/30（Go fft.go:184-186）；
  *  - createAnalyserPipeline：stub AnalyserNode 驱动整帧管线。
  */
 import { describe, expect, it } from 'vitest';
@@ -157,7 +158,7 @@ describe('downsampleWave（任意长字节波 → 256 点桶均值）', () => {
   });
 });
 
-describe('computeBeat（低频带能量 vs EMA(0.92/0.08)×1.35 → snap、exp(-dt*6.5) 衰减）', () => {
+describe('computeBeat（低频带能量 vs EMA(0.92/0.08)×1.35 → snap、exp(-dt*7) 衰减）', () => {
   const DT = 1 / 60;
 
   /** 基线帧：全带 0.1（低频带均值 = 0.1）。 */
@@ -189,14 +190,22 @@ describe('computeBeat（低频带能量 vs EMA(0.92/0.08)×1.35 → snap、exp(-
     expect(st.ema).toBeCloseTo(0.132, 6); // 0.1×0.92 + 0.5×0.08
   });
 
-  it('峰后 300ms（18 帧×1/60）无峰 → 衰减到 exp(-0.3×6.5)≈0.1423 < 0.2', () => {
+  it('峰后 300ms（18 帧×1/60）无峰 → 衰减到 exp(-0.3×7)≈0.1225 < 0.2（Go fft.go:306 衰减率 7）', () => {
     const st = { ema: 0, pulse: 0 };
     for (let i = 0; i < 5; i += 1) computeBeat(baseline(), st, DT);
     computeBeat(spike(), st, DT); // snap → 1
     let beat = 1;
     for (let f = 0; f < 18; f += 1) beat = computeBeat(baseline(), st, DT);
-    expect(beat).toBeCloseTo(Math.exp(-0.3 * 6.5), 10);
+    expect(beat).toBeCloseTo(Math.exp(-0.3 * 7), 10);
     expect(beat).toBeLessThan(0.2);
+  });
+
+  it('dt≤0 或 >0.25 替换为 1/30（Go fft.go:184-186）：不冻结也不爆衰减', () => {
+    const frozen = { ema: 0.1, pulse: 1 };
+    const huge = { ema: 0.1, pulse: 1 };
+    const expected = Math.exp(-(1 / 30) * 7);
+    expect(computeBeat(baseline(), frozen, 0)).toBeCloseTo(expected, 12); // 旧钳 0 会冻结在 1
+    expect(computeBeat(baseline(), huge, 2)).toBeCloseTo(expected, 12); // 旧钳 0.25 会爆衰减
   });
 });
 
@@ -256,6 +265,19 @@ describe('createAnalyserPipeline（stub AnalyserNode：jsdom 无 WebAudio，类�
     bins = binsWith(255, 255); // bass 满幅 → onset snap
     const f2 = pipeline.frame(1 / 60);
     expect(f2.beat).toBeGreaterThan(0.5);
+  });
+
+  it('低频主导回归：bass 稳态 110/其余 40 → bass 全量抬 255 → beat>0.5（归一化域喂 beat 时此场景=0）', () => {
+    // 死区机理：归一化域 bass≈帧峰值 → 压缩后恒贴 1，EMA 恒 1，1.35× 永过不了。
+    // Go fft.go:287-289 / tauri spectrum.ts:56 都吃归一化前的原始幅值。
+    // 稳态取 110（0.4314）： faithful 口径下 EMA 在 onset 判定前先吃当前帧
+    // （Go fft.go:296-299），kick 帧阈值被同帧抬高，bass=1.0 需稳态 <0.4502 才可过 0.5。
+    let bins = binsWith(110, 40); // bass 带稳态 110（raw≈0.4314），其余 40
+    const pipeline = createAnalyserPipeline(stubAnalyser(() => bins, () => WAVE_0125));
+    for (let i = 0; i < 30; i += 1) pipeline.frame(1 / 60); // EMA 收敛
+    bins = binsWith(255, 40); // kick：bass bin 全量抬满
+    const kick = pipeline.frame(1 / 60);
+    expect(kick.beat).toBeGreaterThan(0.5); // raw 域 faithful onset≈0.553
   });
 
   it('reset()：清峰值/节拍状态后首帧与初次一致（换曲不继承旧峰）', () => {
