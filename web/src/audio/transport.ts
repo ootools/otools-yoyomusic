@@ -10,6 +10,9 @@
  * 缓存容量 1、换曲即换：新 prime 顶掉旧槽位，未消费的旧预读落地后立即
  * revoke（大文件不双份驻留内存）；被 resolve 消费过的 URL 归引擎所有，
  * 不做 revoke（引擎自己换曲时释放）。
+ * 健壮性（Task 6 审查建议 #5/#6）：同路径未消费 prime 短路防双重整读；
+ * 建槽即挂 catch，预读失败不产生全局 unhandledrejection（消费方 resolve
+ * 仍拿到原始错误）。
  *
  * blob: 前缀条目（浏览器降级约定，Task 2）：path 以 blob: 开头时直接作为
  * resolve 结果使用（无宿主读盘）；readBytes 对其走 fetch 读 Blob 字节。
@@ -103,8 +106,15 @@ export function createBlobTransport(): BlobTransport {
 
     prime(path) {
       if (path.startsWith(BLOB_PREFIX)) return;
+      // 同路径且未消费 → 短路（Task 6 审查建议 #6）：换曲/重载会重复触发预读，
+      // 不短路会对同一 30–60MB 文件双重整读（Review Focus #1 的内存/带宽翻倍）。
+      if (slot && slot.path === path && !slot.consumed) return;
       const prev = slot;
-      slot = { path, consumed: false, promise: resolveFresh(path) };
+      const promise = resolveFresh(path);
+      // 建槽即挂 catch（Task 6 审查建议 #5）：预读失败不应冒全局
+      // unhandledrejection；消费方 resolve await 的是原 promise，仍拿到真实错误。
+      void promise.catch(() => {});
+      slot = { path, consumed: false, promise };
       if (prev && !prev.consumed) {
         // 被顶掉的未消费预读：落地即释放，避免大 FLAC 双份驻留
         void prev.promise.then(

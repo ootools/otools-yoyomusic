@@ -210,6 +210,68 @@ describe('prime 预读（Review Focus #1：大 FLAC 换曲延迟）', () => {
   });
 });
 
+describe('prime 健壮性（Task 6 审查建议 #5/#6，Task 7 授权微修）', () => {
+  it('prime 同路径未消费短路：不双重底层读、不重建槽位', async () => {
+    const { readHostFile } = installHost(() => '//uQxg==');
+    const { captured } = stubObjectURL();
+    const t = createBlobTransport();
+
+    t.prime('a');
+    t.prime('a'); // 同路径且未消费 → 短路（换曲重复触发预读防双重整读）
+    expect(readHostFile).toHaveBeenCalledTimes(1);
+
+    const url = await t.resolve('a'); // 仍命中原槽位
+    expect(url).toBe('blob:mock-0');
+    expect(captured).toHaveLength(1);
+    expect(readHostFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('prime 同路径已消费（槽位已移交引擎）→ 重新读（短路仅限未消费）', async () => {
+    const { readHostFile } = installHost(() => '//uQxg==');
+    stubObjectURL();
+    const t = createBlobTransport();
+
+    t.prime('a');
+    await t.resolve('a'); // 消费（槽位清空）
+    t.prime('a'); // 需要新一次读：旧 URL 已归引擎，缓存必须重建
+    expect(readHostFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('prime 读失败不产生 unhandled rejection；resolve 消费槽位仍拿到真实错误', async () => {
+    // vitest 跑在 Node，但 tsconfig 无 @types/node：按结构窄化引用 process
+    type NodeProcess = {
+      on(evt: string, cb: (reason: unknown) => void): void;
+      off(evt: string, cb: (reason: unknown) => void): void;
+    };
+    const proc = (globalThis as unknown as { process: NodeProcess }).process;
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    proc.on('unhandledRejection', onUnhandled);
+    try {
+      installHost(() => {
+        throw new Error('boom');
+      });
+      stubObjectURL();
+      const t = createBlobTransport();
+
+      t.prime('a'); // 后台读失败：槽位 promise 被内部 catch 消费，不冒全局 unhandled
+      await flushMicrotasks();
+      await new Promise((r) => setTimeout(r, 0)); // Node 在宏任务轮检查 unhandled rejection
+
+      expect(unhandled).toEqual([]);
+
+      await expect(t.resolve('a')).rejects.toThrow('boom'); // 消费方仍收到原始错误
+      await flushMicrotasks();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(unhandled).toEqual([]); // resolve 路径的 reject 已被 expect 断言消费
+    } finally {
+      proc.off('unhandledRejection', onUnhandled);
+    }
+  });
+});
+
 describe('blob: 前缀条目（浏览器降级约定）', () => {
   it('resolve 直接返回原 URL，无宿主读盘、不造新 Blob', async () => {
     const { readHostFile } = installHost(() => '//uQxg==');

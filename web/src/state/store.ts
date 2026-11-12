@@ -8,6 +8,9 @@
  * Go 语义对照（D:\Repos\xyito\lingyun\YoYoMusic）：
  *  - advance：state.go AdvanceIndex + app.go Prev :401-407 的 ">3s 回 0 而非切曲"
  *    按计划放 store 层；sequence 到尾 → 停止（位置清零、trackId 保留，Go Stop）。
+ *    playing 结果显式化（Task 7 授权增补）：到尾/空列表 Stop → playing=false；
+ *    >3s prev seek0 续播 → playing 保持；到首 Seek0 续播（Go Prev not-ok）→
+ *    playing 保持；中途切曲 → playing 不动（真实播放由 Task 15 接线执行）。
  *  - pushHistory：state.go AddHistory :933-948（头部去重连续重复、cap 200）。
  *  - recordResume：state.go SetResume :900-913（≤5s 或距尾 <2s 不记）。
  *  - 歌单：CreatePlaylist :395-414（缺省名"我的歌单"）/ DeletePlaylist :418-432
@@ -70,6 +73,13 @@ export interface LibrarySlice {
 
 export interface PlaybackSlice {
   trackId?: string;
+  /**
+   * 播放状态位（Task 7 授权增补）：纯状态镜像，真实播放由引擎侧执行。
+   * advance 结果显式化的判据——sequence 到尾（Stop）置 false，>3s prev
+   * seek0 续播保持 true（解决 Task 4 审查遗留的"advance 返回 undefined
+   * 分不清停止还是重播"歧义）。
+   */
+  playing: boolean;
   positionMs: number;
   durationMs: number;
   volume: number;
@@ -127,6 +137,10 @@ export interface StoreState {
   // —— 播放 ——
   playTrack(id: string): void;
   advance(delta: 1 | -1): string | undefined;
+  /** 播放状态位（Task 7）：只翻状态，真实播放由引擎侧/接线层执行。 */
+  play(): void;
+  pause(): void;
+  togglePlay(): void;
   setPlayMode(mode: PlayMode): void;
   setEQ(enabled: boolean, bands?: number[]): void;
   setVolume(v: number): void;
@@ -234,6 +248,7 @@ export const useStore = create<StoreState>()((set, get) => {
 
     playback: {
       trackId: undefined,
+      playing: false, // Task 7 授权增补：状态位，真实播放由引擎侧执行
       positionMs: 0,
       durationMs: 0,
       volume: 0.8, // Go state.go:244
@@ -446,10 +461,11 @@ export const useStore = create<StoreState>()((set, get) => {
       const s = get();
       const { playback } = s;
       if (pl.trackIds.length === 0) {
-        set({ playback: { ...playback, positionMs: 0 } }); // 空列表 → 停止（Go Stop）
+        set({ playback: { ...playback, positionMs: 0, playing: false } }); // 空列表 → 停止（Go Stop）
         return undefined;
       }
       // ">3s 重播"（Go app.go Prev :401-407）：位置超 3s 时 prev 回 0 而非切曲。
+      // playing 不动 = seek0 续播（与"到尾 Stop"的返回值歧义由 playing 显式化解决）。
       if (delta === -1 && playback.positionMs > 3000) {
         set({ playback: { ...playback, positionMs: 0 } });
         return playback.trackId;
@@ -463,11 +479,25 @@ export const useStore = create<StoreState>()((set, get) => {
       }
       const idx = delta === 1 ? nextIndex(mode, pl.currentIndex, pl.trackIds.length) : prevIndex(mode, pl.currentIndex, pl.trackIds.length);
       if (idx === -1) {
-        // sequence 到头/到尾：停止（Go Next→Stop / Prev not-ok→Seek 0，位置都归 0）
-        set({ playback: { ...playback, positionMs: 0 } });
+        // sequence 到尾（delta=1）→ Stop：Go Next not-ok→Stop（IsPlaying=false）；
+        // sequence 到首（delta=-1）→ Go Prev not-ok→Seek 0：playing 不动（续播）。
+        set({ playback: { ...playback, positionMs: 0, ...(delta === 1 ? { playing: false } : {}) } });
         return undefined;
       }
-      return commitAdvance(pl, idx);
+      return commitAdvance(pl, idx); // 切曲：playing 不动，真实播放由接线层执行（Go PlayTrack 总是播）
+    },
+
+    // playing 纯状态位（Task 7 授权增补）：只翻状态，真实播放由引擎侧执行。
+    play() {
+      set((s) => ({ playback: { ...s.playback, playing: true } }));
+    },
+
+    pause() {
+      set((s) => ({ playback: { ...s.playback, playing: false } }));
+    },
+
+    togglePlay() {
+      set((s) => ({ playback: { ...s.playback, playing: !s.playback.playing } }));
     },
 
     setPlayMode(mode) {

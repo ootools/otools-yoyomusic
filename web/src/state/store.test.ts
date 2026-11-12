@@ -530,3 +530,65 @@ describe('VizMode 占位', () => {
     expect(useStore.getState().settings.vizMode).toBe('spectrum');
   });
 });
+
+// --- playing 状态位（Task 7 授权增补：纯状态位，真实播放由引擎侧执行）---
+
+describe('playing 状态位（Task 7 授权增补）', () => {
+  it('初始 false；play/pause/togglePlay 纯状态位翻转', () => {
+    expect(useStore.getState().playback.playing).toBe(false);
+    useStore.getState().play();
+    expect(useStore.getState().playback.playing).toBe(true);
+    useStore.getState().togglePlay();
+    expect(useStore.getState().playback.playing).toBe(false);
+    useStore.getState().togglePlay();
+    expect(useStore.getState().playback.playing).toBe(true);
+    useStore.getState().pause();
+    expect(useStore.getState().playback.playing).toBe(false);
+  });
+
+  it('advance(1) sequence 到尾 → playing=false（Go Next→Stop，Stop 置 IsPlaying=false）', () => {
+    importThree();
+    useStore.getState().playTrack('t3');
+    useStore.getState().play();
+    expect(useStore.getState().advance(1)).toBeUndefined();
+    expect(useStore.getState().playback.playing).toBe(false);
+    expect(useStore.getState().playback.trackId).toBe('t3'); // Go Stop：trackId 保留
+  });
+
+  it('advance(1) 中途切曲 → playing 不动（真实播放由 Task 15 接线决定）', () => {
+    importThree();
+    useStore.getState().playTrack('t1');
+    useStore.getState().play();
+    expect(useStore.getState().advance(1)).toBe('t2');
+    expect(useStore.getState().playback.playing).toBe(true);
+    useStore.getState().pause();
+    useStore.getState().advance(1);
+    expect(useStore.getState().playback.playing).toBe(false); // 暂停中切曲不自动变播放
+  });
+
+  it('prev>3s seek0 续播 → playing 保持 true（返回值歧义由 playing 显式化解决）', () => {
+    importThree();
+    useStore.getState().playTrack('t2');
+    useStore.getState().play();
+    setPlayback({ positionMs: 5000 });
+    expect(useStore.getState().advance(-1)).toBe('t2');
+    expect(useStore.getState().playback.playing).toBe(true);
+    expect(useStore.getState().playback.positionMs).toBe(0);
+  });
+
+  it('≤3s prev 到首（Go Prev not-ok→Seek 0，不 Stop）→ playing 不动', () => {
+    importThree();
+    useStore.getState().playTrack('t1');
+    useStore.getState().play();
+    setPlayback({ positionMs: 1000 });
+    expect(useStore.getState().advance(-1)).toBeUndefined();
+    expect(useStore.getState().playback.playing).toBe(true); // Go：Seek(0) 续播，非 Stop
+    expect(useStore.getState().playback.positionMs).toBe(0);
+  });
+
+  it('空歌单 advance → playing=false（Go Stop，Task 4 既定语义）', () => {
+    useStore.getState().play();
+    expect(useStore.getState().advance(1)).toBeUndefined();
+    expect(useStore.getState().playback.playing).toBe(false);
+  });
+});
