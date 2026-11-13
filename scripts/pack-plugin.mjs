@@ -7,12 +7,10 @@
  * 扁平结构（plugin.json 在 ZIP 根）与「单一顶层目录」两种布局宿主都认，
  * 这里用扁平。
  *
- * 本插件是**纯前端**插件（没有 native cdylib），所以：
- *   - 不校验 lib/；
- *   - 用 `productionManifest` 去掉开发期配置（devUrl / quickDev），
- *     否则 OTools 的正式包校验会以「正式包不能启用开发模式」拒收。
+ * 精确OS/CPU包启用可选native库，兼容包不强加载原生库。每个库先验证文件头与ABI。
+ * productionManifest去掉devUrl/quickDev，source目录提供对应源码和许可证。
  *
- * 用法：node scripts/pack-plugin.mjs [--out dist-pack] [--version 0.6.2]
+ * 用法：node scripts/pack-plugin.mjs [--variant web|windows-x64|windows|universal] [--out dist-pack]
  */
 import { deflateRawSync, crc32 } from 'node:zlib';
 import fs from 'node:fs';
@@ -20,6 +18,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { packageSpec, inspectNative } from './package-matrix.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -121,7 +120,7 @@ export function productionManifest(manifest, version = '') {
   const result = { ...manifest, version: next };
   delete result.devUrl;
   delete result.quickDev;
-  // 本插件没有 native；若将来加了，autoReload 是开发期热重载开关，同样要关掉。
+  // 正式包的native热重载关闭，避免运行中的动态库被替换。
   if (result.native && typeof result.native === 'object') {
     result.native = { ...result.native, autoReload: false };
   }
@@ -130,7 +129,8 @@ export function productionManifest(manifest, version = '') {
 
 function main() {
   const source = JSON.parse(fs.readFileSync(path.join(root, 'plugin.json'), 'utf8'));
-  const manifest = productionManifest(source, arg('version', source.version));
+  const spec = packageSpec(productionManifest(source, arg('version', source.version)), arg('variant', 'web'));
+  const manifest = spec.manifest;
   const { version, packid } = manifest;
 
   const outDir = path.join(root, arg('out', 'dist-pack'));
@@ -145,12 +145,36 @@ function main() {
     if (fs.existsSync(full)) entries.push({ name: logo, data: fs.readFileSync(full) });
   }
 
-  // 3) 前端产物 dist/（本插件没有 lib/：纯前端，无 native cdylib）
-  for (const name of ['dist', 'lib']) {
-    const dir = path.join(root, name);
-    if (!fs.existsSync(dir)) continue;
-    for (const relative of walk(dir)) {
-      entries.push({ name: `${name}/${relative}`, data: fs.readFileSync(path.join(dir, relative)) });
+  // 前端共享；六目标只加入对应架构库，兼容包按目录保留平台来源。
+  const dist = path.join(root, 'dist');
+  if (fs.existsSync(dist)) for (const relative of walk(dist)) entries.push({ name: `dist/${relative}`, data: fs.readFileSync(path.join(dist, relative)) });
+  const nativeLibs = [];
+  const libsRoot = path.resolve(root, arg('libs', 'lib'));
+  for (let index = 0; index < spec.targets.length; index++) {
+    const target = spec.targets[index];
+    const file = path.join(libsRoot, target.id, target.file);
+    if (!fs.existsSync(file)) throw new Error(`Missing real native library for ${target.id}: ${file}`);
+    const data = fs.readFileSync(file);
+    inspectNative(data, target.id);
+    entries.push({ name: spec.libraries[index], data });
+    nativeLibs.push({ target: target.id, file: spec.libraries[index], bytes: data.length });
+  }
+
+  // 许可证与对应源码随包提供（不包含用户音乐/依赖目录/本地验收页）。
+  for (const name of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md']) {
+    const file = path.join(root, name);
+    if (fs.existsSync(file)) entries.push({ name, data: fs.readFileSync(file) });
+  }
+  for (const name of ['package.json', 'package-lock.json', 'plugin.json', 'tsconfig.json', 'vite.config.ts', 'vitest.config.ts', 'logo.svg', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md']) {
+    const file = path.join(root, name);
+    if (fs.existsSync(file)) entries.push({ name: `source/${name}`, data: name === 'plugin.json' ? entries[0].data : fs.readFileSync(file) });
+  }
+  for (const folder of ['web', 'scripts', '.github', 'native']) {
+    if (!fs.existsSync(path.join(root, folder))) continue;
+    for (const relative of walk(path.join(root, folder))) {
+      const segments = relative.split('/');
+      if (relative.startsWith('dev-check.') || segments.some((name) => ['node_modules', '.git', '.vite', 'dist', 'dist-pack', 'target', 'stage'].includes(name) || name.startsWith('.env'))) continue;
+      entries.push({ name: `source/${folder}/${relative}`, data: fs.readFileSync(path.join(root, folder, relative)) });
     }
   }
 
@@ -163,7 +187,8 @@ function main() {
     throw new Error('插件根目录必须提供 logo.svg');
   }
 
-  const output = path.join(outDir, `${packid}-${version}.oplg`);
+  const filename = `${packid}-${version}${spec.suffix ? `-${spec.suffix}` : ''}.oplg`;
+  const output = path.join(outDir, filename);
   fs.writeFileSync(output, zip(entries));
 
   // 发布目录统一扁平结构：oplg + plugin.json + logo.svg + 摘要 + 元信息
@@ -179,7 +204,9 @@ function main() {
     output,
     entries: entries.length,
     totalBytes: entries.reduce((sum, item) => sum + item.data.length, 0),
-    nativeLibs: [],
+    nativeLibs,
+    variant: arg('variant', 'web'),
+    filename,
   };
   fs.writeFileSync(path.join(outDir, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
   process.stdout.write(`${JSON.stringify(meta)}\n`);

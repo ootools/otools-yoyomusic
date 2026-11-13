@@ -33,6 +33,8 @@ export interface PersistenceHandle {
   scheduleSave(key: 'settings' | 'library'): void;
   flushPosition(): void;
   flushNow(): Promise<void>;
+  /** 停止尚未触发的 debounce，并等待全部逻辑写入（含配额重试）结束。 */
+  drain?(): Promise<void>;
 }
 
 /** 各键写节流（尾沿 debounce，spec §10.2：settings 400ms / library 1500ms）。 */
@@ -69,6 +71,7 @@ export function createPersistence(opts: PersistenceOptions): PersistenceHandle {
     library: null,
   };
   let lastPositionFlushAt = Number.NEGATIVE_INFINITY;
+  const inFlight = new Set<Promise<void>>();
 
   /** 配额类错误识别：裁剪重试只针对配额，其余错误原样抛出。 */
   const isQuotaError = (e: unknown): boolean => {
@@ -119,6 +122,12 @@ export function createPersistence(opts: PersistenceOptions): PersistenceHandle {
     throw new Error('persist-quota-exhausted');
   };
 
+  const write = (patch: Record<string, unknown>): Promise<void> => {
+    const task = writeWithPrune(patch);
+    inFlight.add(task);
+    void task.then(() => { inFlight.delete(task); }, () => { inFlight.delete(task); });
+    return task;
+  };
   const cancelPending = (): void => {
     for (const key of ['settings', 'library'] as const) {
       const timer = pendingTimers[key];
@@ -138,7 +147,7 @@ export function createPersistence(opts: PersistenceOptions): PersistenceHandle {
           pendingTimers[key] = null;
           if (!opts.isLeader()) return; // 单写者：仅主控页落盘
           const part = opts.getSnapshot()[key];
-          writeWithPrune({ [key]: part }).catch(() => {
+          write({ [key]: part }).catch(() => {
             // Task 2 审查点：定时写路径必须消费 rejection（裁剪到底仍失败即放弃本次）
           });
         },
@@ -153,7 +162,7 @@ export function createPersistence(opts: PersistenceOptions): PersistenceHandle {
       const now = Date.now();
       if (now - lastPositionFlushAt < POSITION_FLUSH_INTERVAL_MS) return; // 每 5s 至多一次
       lastPositionFlushAt = now;
-      writeWithPrune({ resume }).catch(() => {
+      write({ resume }).catch(() => {
         // 同上：fire-and-forget 路径必须消费 rejection
       });
     },
@@ -161,7 +170,11 @@ export function createPersistence(opts: PersistenceOptions): PersistenceHandle {
     flushNow(): Promise<void> {
       cancelPending(); // 挂起的 debounce 一并落地，避免重复写
       if (!opts.isLeader()) return Promise.resolve();
-      return writeWithPrune(opts.getSnapshot()); // 失败向上抛（调用方可 await）
+      return write(opts.getSnapshot()); // 失败向上抛（调用方可 await）
+    },
+    async drain(): Promise<void> {
+      cancelPending();
+      while (inFlight.size) await Promise.allSettled([...inFlight]);
     },
   };
 }

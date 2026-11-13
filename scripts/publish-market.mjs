@@ -19,7 +19,7 @@ async function jsonRequest(fetcher,url,options={}) {
   if (data.code!==undefined && Number(data.code)!==200) throw new Error(`授权或发布被拒绝（业务码 ${data.code}）`);
   return data;
 }
-export async function credential(mode,env,fetcher=fetch,mask=value=>console.log(`::add-mask::${value}`)) {
+export async function credential(mode,env,fetcher=fetch,mask=value=>{ if (env.GITHUB_ACTIONS==='true') console.log(`::add-mask::${value}`); }) {
   const keys={pat:'XYCLOUD_PAT',login:'XYCLOUD_LOGIN_TOKEN',shared:'OTOOLS_MARKET_TOKEN'};
   if (keys[mode]) { const value=token(env[keys[mode]]); mask(value); return value; }
   if (mode!=='oidc') throw new Error('未知发布认证方式');
@@ -90,7 +90,14 @@ export function marketPayload(manifest,repo,tag,version) {
   // 改用 raw.githubusercontent.com 上同一 tag 的仓库文件：返回 image/svg+xml，
   // 可直接渲染，且随 tag 固定不会漂移。
   const logo=`https://raw.githubusercontent.com/${repo}/${encodeURIComponent(tag)}/logo.svg`;
-  return {...productionManifest(manifest,version),packageUrl:`${base}/${manifest.packid}-${version}.oplg`,logo};
+  return {...productionManifest(manifest,version),packageUrl:`${base}/${manifest.packid}-${version}.oplg`,logo,
+    packageMode:1,
+    packageUrlWindows:`${base}/${manifest.packid}-${version}-windows.oplg`,
+    packageUrlMacos:`${base}/${manifest.packid}-${version}-macos.oplg`,
+    packageUrlLinux:`${base}/${manifest.packid}-${version}-linux.oplg`,
+    supportWindows:true,supportMacos:true,supportLinux:true,
+    minOToolsVersion:manifest.minOToolsVersion || manifest.minOtoolsVersion,
+  };
 }
 export async function publishMarket(url,access,payload,fetcher=fetch) {
   const result=await jsonRequest(fetcher,url,{method:'POST',headers:{Authorization:`Bearer ${token(access)}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});

@@ -1,3 +1,12 @@
 dist/
 node_modules/
 dist-pack/
+dist-release/
+lib/
+native/target/
+native/stage/
+gui-*/
+.env*
+*.dll
+*.dylib
+*.so

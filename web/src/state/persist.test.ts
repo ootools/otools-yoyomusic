@@ -99,6 +99,32 @@ describe('createPersistence 节流与单写者', () => {
     expect(savePersisted).toHaveBeenCalledTimes(2);
   });
 
+  it('drain 取消 debounce 并等待在途配额重试结束', async () => {
+    const writes: Record<string, unknown>[] = [];
+    let finish!: () => void;
+    const blocked = new Promise<void>((resolve) => { finish = resolve; });
+    const snapshot = { library: { tracks: { a: { coverThumb: 'data:image/jpeg;base64,AAA' } } } };
+    const p = createPersistence({ isLeader: () => true, getSnapshot: () => snapshot,
+      savePersisted: async (patch) => {
+        writes.push(patch);
+        if (writes.length === 1) { await blocked; throw new DOMException('quota', 'QuotaExceededError'); }
+      },
+    });
+    const writing = p.flushNow();
+    p.scheduleSave('library');
+    let drained = false;
+    const draining = (p.drain?.() ?? Promise.resolve()).then(() => { drained = true; });
+    await Promise.resolve(); await Promise.resolve();
+    expect(drained).toBe(false);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(writes).toHaveLength(1);
+    finish(); await writing; await draining;
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).toEqual({ library: { tracks: { a: {} } } });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(writes).toHaveLength(2);
+  });
+
   it('flushPosition 快照缺 resume 时不写（不冲掉既有恢复点）', () => {
     const { p, savePersisted } = makeDeps(true, { settings: {} });
     p.flushPosition();

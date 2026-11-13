@@ -196,6 +196,22 @@ describe('prime 预读（Review Focus #1：大 FLAC 换曲延迟）', () => {
     expect(captured).toHaveLength(3);
   });
 
+  it('页面退出清理未消费预读，不回收已移交引擎的URL', async () => {
+    installHost(() => '//uQxg==');
+    const { revoked } = stubObjectURL();
+    const first = createBlobTransport();
+    first.prime('a');
+    first.dispose?.();
+    await flushMicrotasks();
+    expect(revoked).toContain('blob:mock-0');
+    const second = createBlobTransport();
+    second.prime('b');
+    const held = await second.resolve('b');
+    second.dispose?.();
+    await flushMicrotasks();
+    expect(revoked).not.toContain(held);
+  });
+
   it('预读被 resolve 消费后不 revoke（URL 已交给引擎）', async () => {
     installHost(() => '//uQxg==');
     const { revoked } = stubObjectURL();
@@ -274,14 +290,14 @@ describe('prime 健壮性（Task 6 审查建议 #5/#6，Task 7 授权微修）',
 });
 
 describe('blob: 前缀条目（浏览器降级约定）', () => {
-  it('注册表未命中：resolve 原样返回原 URL，无宿主读盘、不造新 Blob', async () => {
+  it('无File注册表也为同源blob重建新的瞬态播放URL', async () => {
     const { readHostFile } = installHost(() => '//uQxg==');
     const { captured } = stubObjectURL();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, blob: async () => new Blob(['audio']) })));
     const t = createBlobTransport();
-
-    await expect(t.resolve('blob:mock-7')).resolves.toBe('blob:mock-7');
+    await expect(t.resolve('blob:mock-7')).resolves.toBe('blob:mock-0');
     expect(readHostFile).not.toHaveBeenCalled();
-    expect(captured).toHaveLength(0);
+    expect(captured).toHaveLength(1);
   });
 
   it('readBytes 对 blob: 条目走 fetch 读字节', async () => {
@@ -322,14 +338,23 @@ describe('降级条目重播（Task 7 审查非阻塞 #2：引擎 revoke 原 URL
     }
   });
 
-  it('注册表未命中（如刷新后残留路径）：原样返回走元素 error，不造新 Blob、不触宿主', async () => {
+  it('同源其它窗口的blob文件通过fetch重建，避免播放引擎回收原始URL', async () => {
     const { readHostFile } = installHost(() => '//uQxg==');
     const { captured } = stubObjectURL();
+    const fixture = new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/wav' });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, blob: async () => fixture })));
     const t = createBlobTransport();
-
-    await expect(t.resolve('blob:stale-0')).resolves.toBe('blob:stale-0');
-    expect(captured).toHaveLength(0);
+    const url = await t.resolve('blob:other-window-file');
+    expect(url).not.toBe('blob:other-window-file');
+    expect(captured[0].blob.size).toBe(3);
     expect(readHostFile).not.toHaveBeenCalled();
+  });
+
+  it('失效的blob读取明确失败而不作为可播路径返回', async () => {
+    installHost(() => '//uQxg==');
+    stubObjectURL();
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('expired blob'); }));
+    await expect(createBlobTransport().resolve('blob:stale-0')).rejects.toThrow('expired blob');
   });
 
   it('宿主模式不受影响：普通路径仍走 readFileBytes 整读（注册表非空也不干扰）', async () => {

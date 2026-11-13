@@ -3,6 +3,17 @@
   "packid": "otools-yoyomusic",
   "displayName": "YoYoMusic",
   "displayNameCN": "悠悠乐听",
+  "developerName": "xyito",
+  "icon": "🎵",
+  "hasAd": false,
+  "inPluginPurchase": false,
+  "openInBrowser": false,
+  "screenshots": [],
+  "native": {
+    "enabled": false,
+    "libDir": "lib",
+    "autoReload": false
+  },
   "openMode": "panel",
   "panelWidth": 1100,
   "panelHeight": 720,

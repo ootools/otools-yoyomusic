@@ -57,10 +57,8 @@ export function clampDt(seconds: number): number {
 export function Visualizer({ getFrame, palette, className, onModeChange }: VisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // store 只读：vizMode 当前选择、vizRandom 随机轮换开关（spec §10.1）。
-  // store.ts 的 VizMode 目前是本地占位 string（TODO(Task 9) 注释：不得反向依赖），
-  // 本组件以 registry 的 VizMode 为权威，在读取边界收窄一次。
-  const storeMode = useStore((s) => s.settings.vizMode) as VizMode;
+  // store 与 registry 共用 VizMode 联合类型（type-only 导入不产生运行时依赖环）。
+  const storeMode = useStore((s) => s.settings.vizMode);
   const vizRandom = useStore((s) => s.settings.vizRandom);
 
   // 最新 props 的 ref：循环免于因闭包过期而重挂。

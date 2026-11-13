@@ -43,11 +43,8 @@ import {
 // —— 类型再导出（后续任务统一从 store 取）——
 export type { Playlist, PlayMode, Track, TrackStatus };
 
-/**
- * TODO(Task 9): 替换为 viz/registry 的 `VizMode` 联合类型。
- * 现为占位 string，避免 state 层反向依赖可视化模块。
- */
-export type VizMode = string;
+import type { VizMode } from '../viz/registry';
+export type { VizMode } from '../viz/registry';
 
 export type Lang = 'zh-CN' | 'en-US';
 export type SidePanel = 'eq' | 'lyrics' | 'skins' | 'about' | null;
@@ -185,7 +182,7 @@ function clampBands(bands: number[]): number[] {
   return out;
 }
 
-export const useStore = create<StoreState>()((set, get) => {
+export const createPlayerStore = () => create<StoreState>()((set, get) => {
   /** 当前歌单（快照）；不存在时回落 default。 */
   const currentPlaylist = (): Playlist | undefined => {
     const lib = get().library;
@@ -568,3 +565,5 @@ export const useStore = create<StoreState>()((set, get) => {
     },
   };
 });
+
+export const useStore = createPlayerStore();

@@ -50,4 +50,9 @@ if (!/otools/i.test(html)) {
   process.exit(1);
 }
 
+for (const notice of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) {
+  const source = path.join(repoRoot, notice);
+  if (fs.existsSync(source)) fs.copyFileSync(source, path.join(repoRoot, 'dist', notice));
+}
+
 console.log(`\n完成。${entry} 就绪且含 OTools 宿主桥标记；用 scripts/deploy-to-otools.ps1 同步到 otools 仓库即可本地试跑。`);

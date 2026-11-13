@@ -173,11 +173,10 @@ describe('模式随机轮换 5–20s（vizRandom 开启时生效，不写 store�
     await vi.advanceTimersByTimeAsync(VIZ_ROTATE_MIN_MS - 1);
     expect(onModeChange).not.toHaveBeenCalled();
 
-    // 轮换是连续的：再走 20000ms（累计 24999ms）会连续触发 1–3 次
-    // （最快 5s 一轮，最慢 20s+5s 才第二轮）。
+    // 累计24999ms，最快5秒一轮，最多可触发4次。
     await vi.advanceTimersByTimeAsync(VIZ_ROTATE_MAX_MS);
     expect(onModeChange.mock.calls.length).toBeGreaterThanOrEqual(1);
-    expect(onModeChange.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(onModeChange.mock.calls.length).toBeLessThanOrEqual(4);
     const next = onModeChange.mock.calls[0][0] as VizMode;
     expect(next).not.toBe('spectrum'); // store 缺省 vizMode='spectrum'
     expect(VIZ_MODES).toContain(next);

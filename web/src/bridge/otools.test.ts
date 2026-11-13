@@ -1,3 +1,4 @@
+import { fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -344,38 +345,57 @@ describe('listDirectoryRecursive', () => {
  * pickAudioFiles / pickDirectory
  * ------------------------------------------------------------------ */
 
+const HOST_DIRECTORY = {
+  currentPath: 'D:/music', parentPath: 'D:/', roots: [],
+  entries: [
+    { name: 'a.mp3', path: 'D:/music/a.mp3', kind: 'file', size: 1, mime: 'audio/mpeg' },
+    { name: 'b.flac', path: 'D:/music/b.flac', kind: 'file', size: 1, mime: 'audio/flac' },
+    { name: 'image.png', path: 'D:/music/image.png', kind: 'file', size: 1, mime: 'image/png' },
+  ],
+};
+
 describe('pickAudioFiles', () => {
-  it('宿主 dialog.open：multiple + Audio filters，多选结果原样返回', async () => {
-    const open = vi.fn(async () => ['D:/a.mp3', 'D:/b.flac']);
-    installFakeHost({ otools: { dialog: { open } } });
-    const picked = await pickAudioFiles();
-    expect(picked).toEqual(['D:/a.mp3', 'D:/b.flac']);
-    expect(open).toHaveBeenCalledWith({
-      multiple: true,
-      filters: [{ name: 'Audio', extensions: AUDIO_EXTENSIONS }],
-    });
+  it('宿主自绘树多选，系统原生 dialog.open 不被调用', async () => {
+    const open = vi.fn(async () => ['D:/wrong.mp3']);
+    installFakeHost({ otools: { dialog: { open }, browseHostDir: async () => HOST_DIRECTORY } });
+    const picked = pickAudioFiles();
+    fireEvent.click(await screen.findByRole('button', { name: 'a.mp3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'b.flac' }));
+    expect(screen.queryByText('image.png')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '选择 (2)' }));
+    await expect(picked).resolves.toEqual(['D:/music/a.mp3', 'D:/music/b.flac']);
+    expect(open).not.toHaveBeenCalled();
   });
 
-  it('宿主返回单字符串 → 规范成数组', async () => {
-    const open = vi.fn(async () => 'D:/only.mp3');
-    installFakeHost({ otools: { dialog: { open } } });
-    await expect(pickAudioFiles()).resolves.toEqual(['D:/only.mp3']);
+  it('仅原始宿主 invoke 也调用浏览目录命令，而非原生文件选择命令', async () => {
+    const { invoke } = installFakeHost({ otools: null, utools: null, tauriInvoke: () => HOST_DIRECTORY });
+    const picked = pickAudioFiles();
+    fireEvent.click(await screen.findByRole('button', { name: 'a.mp3' }));
+    fireEvent.click(screen.getByRole('button', { name: '选择 (1)' }));
+    await expect(picked).resolves.toEqual(['D:/music/a.mp3']);
+    expect(invoke).toHaveBeenCalledWith('tools_webview_browse_dialog', expect.objectContaining({ path: expect.any(String) }));
+    expect(invoke.mock.calls.every(([command]) => command === 'tools_webview_browse_dialog')).toBe(true);
   });
 
-  it('取消（null）→ null', async () => {
-    const open = vi.fn(async () => null);
-    installFakeHost({ otools: { dialog: { open } } });
-    await expect(pickAudioFiles()).resolves.toBeNull();
+  it('自绘树取消返回 null', async () => {
+    installFakeHost({ otools: { browseHostDir: async () => HOST_DIRECTORY } });
+    const picked = pickAudioFiles();
+    fireEvent.click(await screen.findByRole('button', { name: '取消' }));
+    await expect(picked).resolves.toBeNull();
   });
 
-  it('空数组（dialog 语义：multiple 取消）→ null', async () => {
-    const open = vi.fn(async () => []);
+  it('宿主无自绘目录能力不偷偷退回系统对话框或 file input', async () => {
+    const open = vi.fn(async () => 'D:/wrong.mp3');
     installFakeHost({ otools: { dialog: { open } } });
-    await expect(pickAudioFiles()).resolves.toBeNull();
+    delete window.__TAURI_INTERNALS__;
+    await expect(pickAudioFiles()).rejects.toThrow('host-file-browser-unavailable');
+    expect(open).not.toHaveBeenCalled();
+    expect(document.body.querySelector('input[type="file"]')).toBeNull();
   });
 
   it('浏览器降级：注入 input[type=file]，change 后返回 blob: 前缀 objectURL 并登记 File 注册表', async () => {
     installFakeHost({ otools: null, utools: null });
+    delete window.__TAURI_INTERNALS__;
     const created: string[] = [];
     const fakeUrl = (URL as unknown as { createObjectURL?: unknown }).createObjectURL;
     (URL as unknown as { createObjectURL: unknown }).createObjectURL = (blob: unknown) => {
@@ -418,6 +438,7 @@ describe('pickAudioFiles', () => {
 
   it('浏览器降级：cancel 事件 → null', async () => {
     installFakeHost({ otools: null, utools: null });
+    delete window.__TAURI_INTERNALS__;
     const promise = pickAudioFiles();
     const input = document.body.querySelector('input[type="file"]') as HTMLInputElement;
     input.dispatchEvent(new Event('cancel'));
@@ -426,21 +447,27 @@ describe('pickAudioFiles', () => {
 });
 
 describe('pickDirectory', () => {
-  it('宿主 dialog.open({directory:true}) → 返回目录路径', async () => {
-    const open = vi.fn(async () => 'D:/music');
-    installFakeHost({ otools: { dialog: { open } } });
-    await expect(pickDirectory()).resolves.toBe('D:/music');
-    expect(open).toHaveBeenCalledWith({ directory: true });
+  it('宿主自绘树选择当前目录，不调用系统 dialog', async () => {
+    const open = vi.fn(async () => 'D:/wrong');
+    installFakeHost({ otools: { dialog: { open }, browseHostDir: async () => HOST_DIRECTORY } });
+    const picked = pickDirectory();
+    await screen.findByRole('button', { name: '选择此目录' });
+    await screen.findByRole('button', { name: '↑ 上一级' });
+    fireEvent.click(screen.getByRole('button', { name: '选择此目录' }));
+    await expect(picked).resolves.toBe('D:/music');
+    expect(open).not.toHaveBeenCalled();
   });
 
   it('取消 → null', async () => {
-    const open = vi.fn(async () => null);
-    installFakeHost({ otools: { dialog: { open } } });
-    await expect(pickDirectory()).resolves.toBeNull();
+    installFakeHost({ otools: { browseHostDir: async () => HOST_DIRECTORY } });
+    const picked = pickDirectory();
+    fireEvent.click(await screen.findByRole('button', { name: '取消' }));
+    await expect(picked).resolves.toBeNull();
   });
 
   it('浏览器降级不支持选目录 → null', async () => {
     installFakeHost({ otools: null, utools: null });
+    delete window.__TAURI_INTERNALS__;
     await expect(pickDirectory()).resolves.toBeNull();
     expect(document.body.querySelector('input[type="file"]')).toBeNull();
   });
@@ -486,9 +513,11 @@ describe('openPluginWindow', () => {
       options: {
         width: 1100,
         height: 720,
-        decorations: false,
-        resizable: true,
-        skipTaskbar: false,
+      decorations: false,
+      transparent: false,
+      shadow: true,
+      resizable: true,
+      skipTaskbar: false,
         alwaysOnTop: false,
       },
     });

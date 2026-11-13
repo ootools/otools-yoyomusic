@@ -24,18 +24,24 @@ export type BusMsg =
   | { t: 'state-mutate'; key: 'library' | 'settings' | 'window'; patch: unknown; from: string }
   | { t: 'state-snap'; snap: Record<string, unknown>; from: string }
   | { t: 'takeover'; epoch: number; from: string }
-  | { t: 'owner-gone'; from: string }
+  | { t: 'audio-handover-request'; to: string; epoch: number; ownerEpoch: number; requestId: number; from: string }
+  | { t: 'audio-handover-ack'; to: string; epoch: number; ownerEpoch: number; requestId: number; from: string }
+  | { t: 'audio-handover-cancel'; to: string; epoch: number; ownerEpoch: number; requestId: number; from: string }
+  | { t: 'owner-gone'; from: string; epoch?: number }
   | {
       t: 'cmd';
       op: 'play' | 'pause' | 'toggle' | 'next' | 'prev' | 'seek' | 'volume' | 'mute' | 'setTrack';
       arg?: unknown;
       from: string;
     }
-  | { t: 'playback'; state: unknown; from: string };
+  | { t: 'playback'; state: unknown; from: string }
+  | { t: 'signal-request'; from: string }
+  | { t: 'coordinator-gone'; from: string };
 
 export interface Bus {
   post(m: BusMsg): void;
   on(h: (m: BusMsg) => void): () => void;
+  close?(): void;
 }
 
 /** localStorage 兜底通道的信箱 key（计划 Task 3 指定）。 */
@@ -82,6 +88,7 @@ export function createBus(): Bus {
           handlers.delete(h);
         };
       },
+      close(): void { handlers.clear(); channel!.onmessage = null; channel!.close(); },
     };
   }
 
@@ -93,7 +100,7 @@ export function createBus(): Bus {
   // 同内容消息（n 相同 + m 相同）也几乎不可能写出同值串。
   let seq = Math.floor(Math.random() * 1e12);
 
-  window.addEventListener('storage', (event: StorageEvent) => {
+  const onStorage = (event: StorageEvent): void => {
     if (event.key !== BUS_KEY || event.newValue === null) return;
     let parsed: unknown;
     try {
@@ -106,7 +113,8 @@ export function createBus(): Bus {
     if (typeof n !== 'number' || !m || typeof m !== 'object') return;
     if (typeof (m as BusMsg).t !== 'string') return; // 信封内必须是合法 BusMsg
     deliver(m as BusMsg);
-  });
+  };
+  window.addEventListener('storage', onStorage);
 
   return {
     post(m: BusMsg): void {
@@ -122,5 +130,6 @@ export function createBus(): Bus {
         handlers.delete(h);
       };
     },
+    close(): void { handlers.clear(); window.removeEventListener('storage', onStorage); },
   };
 }

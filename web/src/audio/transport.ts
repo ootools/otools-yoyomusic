@@ -36,6 +36,8 @@ export interface AudioTransport {
 export interface BlobTransport extends AudioTransport {
   /** 预读下一首进缓存（容量 1，换曲即换）；blob: 条目无需预读 */
   prime(path: string): void;
+  /** 清理本页尚未消费的预读槽；已移交引擎的URL不受影响。 */
+  dispose?(): void;
 }
 
 const BLOB_PREFIX = 'blob:';
@@ -94,7 +96,10 @@ export function createBlobTransport(): BlobTransport {
         // 被引擎经手，crawler readBytes 的 fetch(path) 始终有效。
         const file = getFallbackFile(path);
         if (file) return URL.createObjectURL(file);
-        return path;
+        // 同源其它窗口没有本页File注册表，但能读取原始blob；播放只使用新URL。
+        const response = await fetch(path);
+        if (response.ok === false) throw new Error('音频文件引用已失效，请重新选择文件。');
+        return URL.createObjectURL(await response.blob());
       }
       if (slot && slot.path === path) {
         const hit = slot;
@@ -136,6 +141,11 @@ export function createBlobTransport(): BlobTransport {
           () => {}, // 读失败本就没有 URL
         );
       }
+    },
+    dispose() {
+      const remaining = slot;
+      slot = null;
+      if (remaining && !remaining.consumed) void remaining.promise.then((url) => URL.revokeObjectURL(url), () => {});
     },
   };
 }

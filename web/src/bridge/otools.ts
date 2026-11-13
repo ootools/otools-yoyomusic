@@ -22,6 +22,8 @@
  * 读文件 reject、选目录 null、窗口操作 no-op、持久化走 localStorage 兜底。
  */
 
+import { pickFromHostTree, type HostBrowsePayload } from './host-file-tree';
+
 /* ------------------------------------------------------------------ */
 /* 宿主类型（对齐 vendor/otools-plugin-sdk/src/otools-globals.ts 子集） */
 /* ------------------------------------------------------------------ */
@@ -69,6 +71,9 @@ export interface OToolsAPI {
   dialog?: OToolsDialogAPI;
   listHostDir?(path: string): Promise<OToolsHostDirEntry[]>;
   readHostFile?(path: string): Promise<OToolsHostReadFilePayload>;
+  browseHostDir?(path?: string): Promise<HostBrowsePayload>;
+  probeNative?(): Promise<{ enabled?: boolean }>;
+  invokeNative?(method: string, payload: Record<string, unknown>): Promise<unknown>;
   getPluginLocalState<T = unknown>(plugin?: string, scheme?: string | null): Promise<T | null>;
   patchPluginLocalState?(
     plugin?: string,
@@ -242,18 +247,6 @@ export async function listDirectoryRecursive(
 
 const AUDIO_EXTENSIONS = ['mp3', 'wav', 'flac', 'ogg', 'aac', 'm4a', 'opus'] as const;
 
-/** dialog.open 结果规范化：null/空 → null，单字符串 → [字符串]。 */
-const normalizeDialogPaths = (result: unknown): string[] | null => {
-  if (Array.isArray(result)) {
-    const paths = result.filter(
-      (item): item is string => typeof item === 'string' && item.trim() !== '',
-    );
-    return paths.length ? paths : null;
-  }
-  if (typeof result === 'string' && result.trim() !== '') return [result];
-  return null;
-};
-
 /**
  * 浏览器降级 File 句柄注册表（Task 7 审查非阻塞 #2：重播缺口）。
  *
@@ -324,47 +317,39 @@ const pickViaFileInput = (): Promise<string[] | null> => {
   });
 };
 
-/** 选音频文件：宿主 dialog.open（multiple + Audio filters）；浏览器降级 input。 */
-export async function pickAudioFiles(): Promise<string[] | null> {
-  const dialog = getOtools()?.dialog;
-  if (dialog && typeof dialog.open === 'function') {
-    try {
-      const result = await dialog.open({
-        multiple: true,
-        filters: [{ name: 'Audio', extensions: [...AUDIO_EXTENSIONS] }],
-      });
-      return normalizeDialogPaths(result);
-    } catch {
-      return null; // 宿主对话框失败按取消处理
-    }
+/** 自绘选择器读取宿主目录，不调用任何原生 pick/dialog 命令。 */
+export async function browseHostDirectory(path = ''): Promise<HostBrowsePayload> {
+  const api = getOtools();
+  if (typeof api?.browseHostDir === 'function') return api.browseHostDir(path);
+  const invoke = getInvoke();
+  if (invoke) return await invoke('tools_webview_browse_dialog', { path }) as HostBrowsePayload;
+  throw new Error('host-file-browser-unavailable');
+}
+
+async function pickHostPaths(directory: boolean): Promise<string[] | null> {
+  if (!getInvoke() && typeof getOtools()?.browseHostDir !== 'function') {
+    throw new Error('host-file-browser-unavailable');
   }
+  const result = await pickFromHostTree({
+    title: directory ? '选择音乐文件夹' : '导入音乐',
+    directory,
+    multiple: !directory,
+    filters: [{ name: 'Audio', extensions: [...AUDIO_EXTENSIONS] }],
+  }, browseHostDirectory);
+  return result.kind === 'picked' && result.paths.length ? result.paths : null;
+}
+
+/** 宿主优先自绘树；完全无宿主时才使用浏览器 File input。 */
+export async function pickAudioFiles(): Promise<string[] | null> {
+  if (getOtools() || getInvoke()) return pickHostPaths(false);
   return pickViaFileInput();
 }
 
-/**
- * 选目录：宿主 dialog.open({directory:true})。
- * 浏览器降级**不支持**：input[type=file] 拿不到原绝对路径（webkitdirectory
- * 只给相对路径），与"只存原绝对路径"的曲库模型（Global Constraints）冲突，
- * 故直接返回 null（上层按 cap 隐藏入口）。
- */
+/** 文件夹在宿主自绘树中选取；独立浏览器没有真实目录路径。 */
 export async function pickDirectory(): Promise<string | null> {
-  const dialog = getOtools()?.dialog;
-  if (dialog && typeof dialog.open === 'function') {
-    try {
-      const result = await dialog.open({ directory: true });
-      if (typeof result === 'string' && result.trim() !== '') return result;
-      if (Array.isArray(result)) {
-        const first = result.find(
-          (item): item is string => typeof item === 'string' && item.trim() !== '',
-        );
-        return first ?? null;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  if (!getOtools() && !getInvoke()) return null;
+  const paths = await pickHostPaths(true);
+  return paths?.[0] ?? null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -395,6 +380,8 @@ const WINDOW_SPECS = {
       width: 1100,
       height: 720,
       decorations: false,
+      transparent: false,
+      shadow: true,
       resizable: true,
       skipTaskbar: false,
       alwaysOnTop: false,

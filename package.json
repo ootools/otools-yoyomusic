@@ -7,7 +7,10 @@
   "scripts": {
     "dev": "vite",
     "build": "node scripts/build-web.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "pack": "node scripts/pack-plugin.mjs && node scripts/verify-plugin.mjs",
+    "preview": "node scripts/serve-dist.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

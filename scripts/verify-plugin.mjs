@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { packageSpec, inspectNative } from './package-matrix.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const directory = path.resolve(root, process.argv[2] || 'dist-pack');
@@ -93,7 +94,10 @@ function main() {
   // 摘要清单必须刚好覆盖这三个文件
   const sumsPath = path.join(directory, 'SHA256SUMS');
   if (!fs.existsSync(sumsPath)) fail('缺少 SHA256SUMS');
-  const filename = `${packid}-${version}.oplg`;
+  const metadata = JSON.parse(fs.readFileSync(path.join(directory, 'meta.json'), 'utf8'));
+  const variant = metadata.variant || 'web';
+  const spec = packageSpec(manifest, variant);
+  const filename = `${packid}-${version}${spec.suffix ? `-${spec.suffix}` : ''}.oplg`;
   const expected = new Set([filename, 'plugin.json', 'logo.svg']);
   const checksums = new Map();
   for (const line of fs.readFileSync(sumsPath, 'utf8').split('\n').filter(Boolean)) {
@@ -138,6 +142,18 @@ function main() {
   const entryData = entries.find((e) => e.name === manifest.entry).data.toString('utf8');
   if (!/otools/i.test(entryData)) fail('入口 HTML 里没有 OTools 宿主桥（应包含 window.otools 或 window.otoolsPlugin）');
   ok('入口 HTML 含 OTools 宿主桥');
+  const packedManifest = JSON.parse(entries.find((entry) => entry.name === 'plugin.json').data.toString('utf8'));
+  if (JSON.stringify(packedManifest) !== JSON.stringify(manifest)) fail('包内清单与发布清单不同');
+  if (Boolean(manifest.native?.enabled) !== Boolean(spec.manifest.native.enabled)) fail('native.enabled 与发布包平台模式不符');
+  const libraries = entries.filter((entry) => entry.name.startsWith('lib/'));
+  if (libraries.length !== spec.libraries.length) fail('平台包包含了不属于当前平台的lib或遗漏lib');
+  for (let index = 0; index < spec.targets.length; index++) {
+    const expected = spec.libraries[index];
+    const library = entries.find((entry) => entry.name === expected);
+    if (!library) fail(`缺少真实平台库：${expected}`);
+    inspectNative(library.data, spec.targets[index].id);
+  }
+  if (spec.targets.length) ok(`${variant} 平台lib的OS/CPU/ABI校验通过（${spec.targets.length} 个）`);
 
   const wasm = entries.filter((e) => e.name.endsWith('.wasm'));
   // 纯前端插件（web 模式）没有 wasm 是正常的；wasm 插件请在 plugin.json 设 "wasm": true 来强制校验。

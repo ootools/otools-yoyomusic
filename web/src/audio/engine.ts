@@ -248,15 +248,17 @@ export class AudioEngine {
 
   // —— 播放控制 ——
 
-  play(): void {
-    if (this.suspended) return; // 被接管：不再驱动
-    // Task 16 冒烟覆盖：首播建链（用户手势内创建 → AudioContext 可运行），
-    // 并按 autoplay 策略 resume（挂起的 context 会静音整条链）。
+  /** 在点击手势内解锁音频图；文件异步读取不应丢掉用户激活。 */
+  prepare(): void {
     const graph = this.ensureGraph();
     if (graph) void graph.ctx.resume().catch(() => {});
-    const p = this.el.play() as Promise<void> | undefined;
-    // 策略拒绝（NotAllowedError）等非曲目错误：静默；jsdom 无实现返回 undefined。
-    if (p && typeof p.catch === 'function') p.catch(() => {});
+  }
+
+  play(): Promise<void> {
+    if (this.suspended) return Promise.resolve();
+    this.prepare();
+    // 向协调层传播 autoplay 拒绝，不能先把播放状态假设为成功。
+    return Promise.resolve(this.el.play());
   }
 
   pause(): void {
@@ -416,5 +418,22 @@ export class AudioEngine {
     graph.analyser.getByteFrequencyData(this.freqBuf);
     graph.analyser.getByteTimeDomainData(this.waveBuf);
     return { bins: this.freqBuf, wave: this.waveBuf, sampleRate: graph.ctx.sampleRate };
+  }
+
+  /** 页面退出时清理媒体、音频图和本页瞬态 Blob，不影响其它窗口。 */
+  dispose(): void {
+    this.suspended = true;
+    this.el.pause();
+    this.el.removeEventListener('ended', this.handleEnded);
+    this.el.removeEventListener('error', this.handleError);
+    this.el.removeEventListener('timeupdate', this.handleTimeupdate);
+    this.el.removeAttribute('src');
+    this.releaseHeldUrl();
+    this.hooks = null;
+    this.graph?.gain.disconnect();
+    this.graph?.analyser.disconnect();
+    for (const filter of this.graph?.filters ?? []) filter.disconnect();
+    if (this.graph) void this.graph.ctx.close().catch(() => {});
+    this.graph = null;
   }
 }

@@ -62,6 +62,24 @@ test('credentials are preflighted without making network calls or echoing secret
   assert.doesNotThrow(()=>validateAuthConfig('login',{XYCLOUD_LOGIN_TOKEN:'Bearer login.jwt'}));
   assert.doesNotThrow(()=>validateAuthConfig('shared',{OTOOLS_MARKET_TOKEN:'shared-test'}));
 });
+test('本地获取凭证不输出PAT，CI才使用官方mask指令', async () => {
+  const seen = [];
+  const original = console.log;
+  console.log = (...values) => seen.push(values.join(' '));
+  try {
+    const value = await credential('pat', { XYCLOUD_PAT: 'xy_pat_test_only' }, () => { throw Error('no request'); });
+    assert.equal(value, 'xy_pat_test_only');
+    assert.deepEqual(seen, []);
+  } finally { console.log = original; }
+});
+test('市场使用系统兼容包并保留通用兜底地址', () => {
+  const payload = marketPayload({ packid: 'otools-yoyomusic', uuid: 'otools-yoyomusic', version: '0.1.0', entry: 'dist/index.html' }, 'ootools/otools-yoyomusic', 'v0.1.0', '0.1.0');
+  assert.equal(payload.packageMode, 1);
+  assert.equal(payload.packageUrlWindows, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.0/otools-yoyomusic-0.1.0-windows.oplg');
+  assert.equal(payload.packageUrlMacos, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.0/otools-yoyomusic-0.1.0-macos.oplg');
+  assert.equal(payload.packageUrlLinux, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.0/otools-yoyomusic-0.1.0-linux.oplg');
+});
+
 test('invalid packid, entry and version are rejected before packaging',()=>{
   assert.throws(()=>releaseMeta({version:'1.0.0'}));
   assert.throws(()=>releaseMeta({packid:'../escape',version:'1.0.0'}));

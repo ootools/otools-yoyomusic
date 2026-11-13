@@ -1,24 +1,21 @@
 import { createRoot } from 'react-dom/client';
 import { routeFromLocation } from './route';
+import { createRuntime } from './app/runtime';
+import { RuntimeProvider } from './app/context';
+import { AppLayout } from './ui/AppLayout';
+import { LyricsWindow } from './windows/desktop-lyrics/LyricsWindow';
+import { applySkin, SKINS } from './theme/skins';
+import { applyTokens } from './theme/tokens';
+import { markCustomWindowReady } from './windows/native';
+import './ui/styles.css';
 
-/**
- * Task 1 占位页：证明三路由活着。宿主桥（window.otools 能力探测）在 Task 2 接入。
- */
-const PLACEHOLDER: Record<string, string> = {
-  panel: '悠悠乐听 · 面板页（占位，Task 11 起装配全功能 UI）',
-  main: '悠悠乐听 · 主窗口页（占位）',
-  lyrics: '悠悠乐听 · 桌面歌词页（占位）',
-};
-
-function App() {
-  const route = routeFromLocation(window.location.search);
-  return (
-    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
-      <p data-route={route} style={{ fontSize: 14, opacity: 0.8 }}>
-        {PLACEHOLDER[route]}
-      </p>
-    </div>
-  );
-}
-
-createRoot(document.getElementById('root')!).render(<App />);
+const route = routeFromLocation(window.location.search);
+if (route === 'lyrics') document.documentElement.dataset.lyricsWindow = 'true';
+applySkin(SKINS[0]);
+applyTokens();
+const runtime = createRuntime({ route });
+createRoot(document.getElementById('root')!).render(<RuntimeProvider runtime={runtime}>
+  {route === 'lyrics' ? <LyricsWindow /> : <AppLayout route={route} />}
+</RuntimeProvider>);
+void runtime.start().then(() => markCustomWindowReady(true)).catch(console.error);
+window.addEventListener('pagehide', runtime.dispose, { once: true });
