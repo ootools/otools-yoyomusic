@@ -133,7 +133,7 @@ function main() {
   const manifest = spec.manifest;
   const { version, packid } = manifest;
 
-  const outDir = path.join(root, arg('out', 'dist-pack'));
+  const outDir = path.resolve(root, arg('out', 'dist-pack'));
   fs.mkdirSync(outDir, { recursive: true });
 
   // 1) 包内 plugin.json（生产清单，版本号与文件名一致）

@@ -45,18 +45,20 @@ test('正式插件包含许可证与可重建源码，不包含模拟宿主页�
     fs.mkdirSync(path.join(root, 'native', 'stage'), { recursive: true });
     fs.writeFileSync(path.join(root, 'native', 'stage', 'Windows.dll'), 'private build output');
     fs.writeFileSync(path.join(root, 'dist', 'index.html'), '<title>OTools</title>');
-    const packed = spawnSync(process.execPath, [path.join(root, 'scripts', 'pack-plugin.mjs')], { encoding: 'utf8' });
+    const output = path.join(root, 'absolute-output');
+    const packed = spawnSync(process.execPath, [path.join(root, 'scripts', 'pack-plugin.mjs'), '--out', output], { encoding: 'utf8' });
     assert.equal(packed.status, 0, packed.stderr);
-    const names = entryNames(fs.readFileSync(path.join(root, 'dist-pack', 'otools-yoyomusic-0.1.0.oplg')));
+    assert.ok(fs.existsSync(path.join(output, 'otools-yoyomusic-0.1.0.oplg')), 'absolute --out must not be joined twice');
+    const names = entryNames(fs.readFileSync(path.join(output, 'otools-yoyomusic-0.1.0.oplg')));
     for (const required of ['LICENSE', 'THIRD_PARTY_NOTICES.md', 'source/LICENSE', 'source/package.json', 'source/web/src/main.tsx', 'source/scripts/pack-plugin.mjs', 'dist/index.html']) assert.ok(names.includes(required), `missing ${required}`);
     assert.equal(names.some((name) => name.includes('dev-check')), false);
     assert.equal(names.some((name) => name.split('/').includes('node_modules')), false);
     assert.equal(names.some((name) => name.startsWith('source/native/stage/')), false);
     assert.equal(names.some((name) => name.split('/').some((part) => part.startsWith('.env'))), false);
-    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dist-pack', 'plugin.json'), 'utf8'));
+    const manifest = JSON.parse(fs.readFileSync(path.join(output, 'plugin.json'), 'utf8'));
     assert.equal(Object.hasOwn(manifest, 'devUrl'), false);
     assert.equal(Object.hasOwn(manifest, 'quickDev'), false);
-    const checked = spawnSync(process.execPath, [path.join(root, 'scripts', 'verify-plugin.mjs')], { encoding: 'utf8' });
+    const checked = spawnSync(process.execPath, [path.join(root, 'scripts', 'verify-plugin.mjs'), output], { encoding: 'utf8' });
     assert.equal(checked.status, 0, checked.stderr);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

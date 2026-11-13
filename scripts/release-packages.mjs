@@ -25,7 +25,7 @@ try {
   const assets = [];
   for (const variant of variants) {
     const staging = path.join(root, 'dist-pack', `matrix-${variant}`);
-    invoke('pack-plugin.mjs', ['--variant', variant, '--libs', libRoot, '--out', staging]);
+    invoke('pack-plugin.mjs', ['--variant', variant, '--libs', libRoot, '--out', path.relative(root, staging)]);
     invoke('verify-plugin.mjs', [staging]);
     const metadata = JSON.parse(fs.readFileSync(path.join(staging, 'meta.json'), 'utf8'));
     fs.copyFileSync(path.join(staging, metadata.filename), path.join(output, metadata.filename));

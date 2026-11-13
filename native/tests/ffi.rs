@@ -30,7 +30,7 @@ fn ffi_health_roundtrips_json_bytes_and_frees_the_exact_buffer() {
         let response: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(response["ok"], true);
         assert_eq!(response["data"]["id"], "otools-yoyomusic");
-        assert_eq!(response["data"]["version"], "0.1.1");
+        assert_eq!(response["data"]["version"], "0.1.2");
     }
 }
 

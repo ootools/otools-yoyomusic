@@ -8,7 +8,7 @@ export function AboutPanel() {
   const runtime = useRuntime();
   return <div className="about-panel"><img className="about-logo" src={new URL('../../../../logo.svg', import.meta.url).href} alt="" />
     <h2>{t('app.name')}</h2><p className="muted">{t('app.tagline')}</p><p>{t('about.info')}</p>
-    <div className="panel-divider" /><p className="muted">{t('about.features')}</p><p>{t('about.version')} <strong>0.1.1</strong></p>
+    <div className="panel-divider" /><p className="muted">{t('about.features')}</p><p>{t('about.version')} <strong>0.1.2</strong></p>
     <label className="switch-row"><span>{t('about.restore')}</span><input type="checkbox" role="switch" checked={settings.restoreSession}
       onChange={(event) => runtime.action({ type: 'settings', patch: { restoreSession: event.target.checked } })} /></label>
     <label className="switch-row"><span>{t('about.language')}</span><select value={currentLocale()} onChange={(event) => {

@@ -57,11 +57,11 @@ YoYoMusic 衍生移植，**AGPL-3.0-or-later**，见 `LICENSE`、`THIRD_PARTY_NO
 
 ## 六目标发布
 
-`v<plugin.json.version>` 标签触发六目标 CI：Windows/macOS/Linux × x64/arm64，各包包含对应架构的真实lib。Windows库使用静态CRT。`v0.1.1` 发布正好六个包：
+`v<plugin.json.version>` 标签触发六目标 CI：Windows/macOS/Linux × x64/arm64，各包包含对应架构的真实lib。Windows库使用静态CRT。`v0.1.2` 发布正好六个包：
 
-- Windows：`otools-yoyomusic-0.1.1-windows.oplg`（x64）、`-windows-arm.oplg`（ARM64）。
-- macOS：`otools-yoyomusic-0.1.1-macos.oplg`（Apple Silicon）、`-macos-intel.oplg`（Intel）。
-- Linux：`otools-yoyomusic-0.1.1-linux.oplg`（x64）、`-linux-arm.oplg`（ARM64）。
+- Windows：`otools-yoyomusic-0.1.2-windows.oplg`（x64）、`-windows-arm.oplg`（ARM64）。
+- macOS：`otools-yoyomusic-0.1.2-macos.oplg`（Apple Silicon）、`-macos-intel.oplg`（Intel）。
+- Linux：`otools-yoyomusic-0.1.2-linux.oplg`（x64）、`-linux-arm.oplg`（ARM64）。
 
 沿用最新市场的六架构URL字段和 `packageMode=1`，不引用不存在的通用包。各包启用匹配架构的可选native歌词库；完整音乐播放仍通过Web Audio和宿主接口。详情见 `docs/release-six-targets.md`。原生源码位于 `native/`：
 
