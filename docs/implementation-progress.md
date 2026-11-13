@@ -19,7 +19,7 @@
 - Ruling: 用户要求音乐文件和文件夹选择改为宿主自绘选择器；替代此前 `dialog.open` 的系统原生路径。使用宿主 SDK 的 `host-file-tree.ts` 模式（原生 DOM、宿主目录数据），在插件适配层补多选和异步导航保护；不修改宿主。`window.otools.browseHostDir` / `tools_webview_browse_dialog` 返回真实宿主路径。宿主内不退回原生 dialog；无宿主才走 File input。
 - Ruling: 自绘选择器停留在插件页面，不会因原生文件对话框而触发 panel 失焦；删除“每次选文件强制 show_panel_window”的必要性，避免从独立主窗意外弹出 panel。
 - Ruling: 当前 `Agent` 执行服务连续返回 token-rate-limit，重启旧代理和新代理均失败；已告知用户，当前会话暂时代执行并保留测试门槛，服务恢复后补独立审查。不得把失败代理记为验收通过。
-- Ruling: 后续工作放在 `feat/yoyomusic-plugin`；不再自动提交、推送、发布或修改超级工程子模块，需明确用户授权。
+- Ruling: 开发完成前不自动提交或上架；随后用户明确授权GitHub推送、xyito子模块及六包市场发布，已完成v0.1.2。详情见 `docs/release-v0.1.2-result.md`。
 - Ruling: 布局数字以 Go `view.go` 为准，暗色皮肤与 tauri Canvas 动效不改；桌面歌词用真实宿主自定义窗口，不能以网页内浮层充当。
 
 ## 待集成注意点
