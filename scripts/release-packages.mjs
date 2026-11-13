@@ -18,10 +18,10 @@ const invoke = (script, argv) => {
 };
 
 try {
-  // 六目标齐备且文件头匹配，才允许生成市场compat/通用包。
+  // 六架构真实库齐备才发布，按最新市场标准suffix生成正好六包。
   for (const target of NATIVE_TARGETS) inspectNative(fs.readFileSync(path.join(libRoot, target.id, target.file)), target.id);
   fs.mkdirSync(output, { recursive: true });
-  const variants = [...NATIVE_TARGETS.map((value) => value.id), 'windows', 'macos', 'linux', 'universal'];
+  const variants = NATIVE_TARGETS.map((value) => value.id);
   const assets = [];
   for (const variant of variants) {
     const staging = path.join(root, 'dist-pack', `matrix-${variant}`);
@@ -30,13 +30,13 @@ try {
     const metadata = JSON.parse(fs.readFileSync(path.join(staging, 'meta.json'), 'utf8'));
     fs.copyFileSync(path.join(staging, metadata.filename), path.join(output, metadata.filename));
     assets.push(metadata.filename);
-    if (variant === 'universal') for (const name of ['plugin.json', 'logo.svg']) { fs.copyFileSync(path.join(staging, name), path.join(output, name)); assets.push(name); }
+    if (variant === 'windows-x64') for (const name of ['plugin.json', 'logo.svg']) { fs.copyFileSync(path.join(staging, name), path.join(output, name)); assets.push(name); }
   }
   const sums = assets.sort().map((name) => `${createHash('sha256').update(fs.readFileSync(path.join(output, name))).digest('hex')}  ${name}`);
   fs.writeFileSync(path.join(output, 'SHA256SUMS'), `${sums.join('\n')}\n`);
-  const report = { packid: manifest.packid, version: manifest.version, nativeTargets: NATIVE_TARGETS.map((value) => value.id), packageCount: 10, assets };
+  const report = { packid: manifest.packid, version: manifest.version, nativeTargets: NATIVE_TARGETS.map((value) => value.id), packageCount: 6, assets };
   fs.writeFileSync(path.join(output, 'release-assets.json'), `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`Six native target packages + three market OS compatibility packages + universal package ready: ${output}`);
+  console.log(`Six actual native target packages ready: ${output}`);
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

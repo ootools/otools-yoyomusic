@@ -23,7 +23,7 @@ npm run dev
 
 - 开发：`http://127.0.0.1:6482/`
 - 生产预览：`npm run preview` → `http://127.0.0.1:6483/`
-- 包：`dist-pack/otools-yoyomusic-0.1.0.oplg`，从 OTools 插件管理的本地安装入口选择。
+- 包：从 GitHub Release 选择本机系统/架构的 `.oplg`，通过 OTools 插件管理的本地安装入口安装。
 - `plugin.json` 默认 `openMode: panel`；生产包自动移除 `devUrl`、`quickDev`。
 
 宿主源码内联调（会覆盖指定宿主 `plugins/otools-yoyomusic`；使用前确认目标）：
@@ -57,13 +57,13 @@ YoYoMusic 衍生移植，**AGPL-3.0-or-later**，见 `LICENSE`、`THIRD_PARTY_NO
 
 ## 六目标发布
 
-`v<plugin.json.version>` 标签触发六目标 CI：Windows/macOS/Linux × x64/arm64，各包包含对应架构的真实lib。Windows库使用静态CRT。发布文件：
+`v<plugin.json.version>` 标签触发六目标 CI：Windows/macOS/Linux × x64/arm64，各包包含对应架构的真实lib。Windows库使用静态CRT。`v0.1.1` 发布正好六个包：
 
-- `otools-yoyomusic-0.1.0-{windows,macos,linux}-{x64,arm64}.oplg`（六精确包，native启用）。
-- `otools-yoyomusic-0.1.0-{windows,macos,linux}.oplg`（三系统兼容包，双架构lib按目录携带，native不强加载）。
-- `otools-yoyomusic-0.1.0.oplg`（通用兼容兜底）。
+- Windows：`otools-yoyomusic-0.1.1-windows.oplg`（x64）、`-windows-arm.oplg`（ARM64）。
+- macOS：`otools-yoyomusic-0.1.1-macos.oplg`（Apple Silicon）、`-macos-intel.oplg`（Intel）。
+- Linux：`otools-yoyomusic-0.1.1-linux.oplg`（x64）、`-linux-arm.oplg`（ARM64）。
 
-当前市场按OS而非CPU分发，兼容包保持所有播放/歌词/窗口能力；详细矩阵和边界见 `docs/release-six-targets.md`。原生库源码位于 `native/`：
+沿用最新市场的六架构URL字段和 `packageMode=1`，不引用不存在的通用包。各包启用匹配架构的可选native歌词库；完整音乐播放仍通过Web Audio和宿主接口。详情见 `docs/release-six-targets.md`。原生源码位于 `native/`：
 
 ```bash
 cargo test --locked --manifest-path native/Cargo.toml

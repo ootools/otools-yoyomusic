@@ -1,10 +1,10 @@
 export const NATIVE_TARGETS = [
-  { id: 'windows-x64', platform: 'windows', arch: 'x64', target: 'x86_64-pc-windows-msvc', file: 'Windows.dll' },
-  { id: 'windows-arm64', platform: 'windows', arch: 'arm64', target: 'aarch64-pc-windows-msvc', file: 'Windows.dll' },
-  { id: 'macos-x64', platform: 'macos', arch: 'x64', target: 'x86_64-apple-darwin', file: 'macOS.dylib' },
-  { id: 'macos-arm64', platform: 'macos', arch: 'arm64', target: 'aarch64-apple-darwin', file: 'macOS.dylib' },
-  { id: 'linux-x64', platform: 'linux', arch: 'x64', target: 'x86_64-unknown-linux-gnu', file: 'Linux.so' },
-  { id: 'linux-arm64', platform: 'linux', arch: 'arm64', target: 'aarch64-unknown-linux-gnu', file: 'Linux.so' },
+  { id: 'windows-x64', platform: 'windows', arch: 'x64', target: 'x86_64-pc-windows-msvc', file: 'Windows.dll', suffix: 'windows', field: 'packageUrlWindows' },
+  { id: 'windows-arm64', platform: 'windows', arch: 'arm64', target: 'aarch64-pc-windows-msvc', file: 'Windows.dll', suffix: 'windows-arm', field: 'packageUrlWindowsArm' },
+  { id: 'macos-x64', platform: 'macos', arch: 'x64', target: 'x86_64-apple-darwin', file: 'macOS.dylib', suffix: 'macos-intel', field: 'packageUrlMacosIntel' },
+  { id: 'macos-arm64', platform: 'macos', arch: 'arm64', target: 'aarch64-apple-darwin', file: 'macOS.dylib', suffix: 'macos', field: 'packageUrlMacos' },
+  { id: 'linux-x64', platform: 'linux', arch: 'x64', target: 'x86_64-unknown-linux-gnu', file: 'Linux.so', suffix: 'linux', field: 'packageUrlLinux' },
+  { id: 'linux-arm64', platform: 'linux', arch: 'arm64', target: 'aarch64-unknown-linux-gnu', file: 'Linux.so', suffix: 'linux-arm', field: 'packageUrlLinuxArm' },
 ];
 
 /** 校验OS/CPU文件头和必需ABI符号；不会拿改名文本冒充真实平台库。 */
@@ -37,5 +37,5 @@ export function packageSpec(manifest, variant = 'web') {
   if (variant !== 'web' && !targets.length) throw new Error(`Unknown package variant: ${variant}`);
   const native = { ...manifest.native, enabled: Boolean(target), autoReload: false, libDir: 'lib' };
   const libraries = targets.map((value) => target ? `lib/${value.file}` : `lib/${value.id}/${value.file}`);
-  return { manifest: { ...manifest, native }, targets, libraries, suffix: variant === 'web' || variant === 'universal' ? '' : variant };
+  return { manifest: { ...manifest, native }, targets, libraries, suffix: target ? target.suffix : variant === 'web' || variant === 'universal' ? '' : `${variant}-compat` };
 }

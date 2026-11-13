@@ -24,9 +24,10 @@ test('HTTP and application errors fail rather than claiming publication success'
   await assert.rejects(publishMarket('https://api.test/publish','xy_pat_test',{},async()=>response({},false)));
   await assert.rejects(publishMarket('https://api.test/publish','xy_pat_test',{},async()=>response({error:'unexpected'})));
 });
-test('market payload uses actual packageUrl and a renderable raw logo field',()=>{
+test('market payload uses six native package URLs and a renderable raw logo field',()=>{
   const p=marketPayload({packid:'plugin-a',uuid:'plugin-a',version:'1.0.0',displayName:'A',entry:'dist/index.html'},'owner/repo','v1.0.0','1.0.0');
-  assert.equal(p.packageUrl,'https://github.com/owner/repo/releases/download/v1.0.0/plugin-a-1.0.0.oplg');
+  assert.equal(p.packageUrl,undefined);
+  assert.equal(p.packageUrlWindows,'https://github.com/owner/repo/releases/download/v1.0.0/plugin-a-1.0.0-windows.oplg');
   // logo 必须走 raw.githubusercontent.com：Release 资产链是 octet-stream+attachment，<img> 拒载
   assert.equal(p.logo,'https://raw.githubusercontent.com/owner/repo/v1.0.0/logo.svg');
 });
@@ -72,12 +73,16 @@ test('本地获取凭证不输出PAT，CI才使用官方mask指令', async () =>
     assert.deepEqual(seen, []);
   } finally { console.log = original; }
 });
-test('市场使用系统兼容包并保留通用兜底地址', () => {
-  const payload = marketPayload({ packid: 'otools-yoyomusic', uuid: 'otools-yoyomusic', version: '0.1.0', entry: 'dist/index.html' }, 'ootools/otools-yoyomusic', 'v0.1.0', '0.1.0');
+test('市场使用六平台含lib包的精确架构URL，不引用未发布通用包', () => {
+  const payload = marketPayload({ packid: 'otools-yoyomusic', uuid: 'otools-yoyomusic', version: '0.1.1', entry: 'dist/index.html' }, 'ootools/otools-yoyomusic', 'v0.1.1', '0.1.1');
   assert.equal(payload.packageMode, 1);
-  assert.equal(payload.packageUrlWindows, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.0/otools-yoyomusic-0.1.0-windows.oplg');
-  assert.equal(payload.packageUrlMacos, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.0/otools-yoyomusic-0.1.0-macos.oplg');
-  assert.equal(payload.packageUrlLinux, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.0/otools-yoyomusic-0.1.0-linux.oplg');
+  assert.equal(payload.packageUrlWindows, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.1/otools-yoyomusic-0.1.1-windows.oplg');
+  assert.equal(payload.packageUrlWindowsArm, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.1/otools-yoyomusic-0.1.1-windows-arm.oplg');
+  assert.equal(payload.packageUrlMacos, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.1/otools-yoyomusic-0.1.1-macos.oplg');
+  assert.equal(payload.packageUrlMacosIntel, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.1/otools-yoyomusic-0.1.1-macos-intel.oplg');
+  assert.equal(payload.packageUrlLinux, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.1/otools-yoyomusic-0.1.1-linux.oplg');
+  assert.equal(payload.packageUrlLinuxArm, 'https://github.com/ootools/otools-yoyomusic/releases/download/v0.1.1/otools-yoyomusic-0.1.1-linux-arm.oplg');
+  assert.equal(payload.packageUrl, undefined);
 });
 
 test('invalid packid, entry and version are rejected before packaging',()=>{

@@ -49,10 +49,10 @@ jobs:
             runner: windows-2022
             target: aarch64-pc-windows-msvc
           - id: macos-x64
-            runner: macos-14
+            runner: macos-latest
             target: x86_64-apple-darwin
           - id: macos-arm64
-            runner: macos-14
+            runner: macos-latest
             target: aarch64-apple-darwin
           - id: linux-x64
             runner: ubuntu-22.04
@@ -77,6 +77,9 @@ jobs:
         env:
           RUSTFLAGS: ${{ (matrix.id == 'windows-x64' || matrix.id == 'windows-arm64') && '-C target-feature=+crt-static' || '' }}
         run: node scripts/build-native.mjs --target ${{ matrix.target }} --out lib/${{ matrix.id }}
+      - name: Ad-hoc sign macOS library
+        if: runner.os == 'macOS'
+        run: codesign --force --sign - --timestamp=none lib/${{ matrix.id }}/macOS.dylib
       - name: Verify OS, architecture and ABI
         shell: bash
         env:

@@ -1,6 +1,7 @@
 /** 独立插件发布：显式选择认证方式，秘密仅在当前进程使用，不写入 artifact/job outputs。 */
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { NATIVE_TARGETS } from './package-matrix.mjs';
 
 function httpsUrl(value) {
   const url = new URL(value);
@@ -90,14 +91,13 @@ export function marketPayload(manifest,repo,tag,version) {
   // 改用 raw.githubusercontent.com 上同一 tag 的仓库文件：返回 image/svg+xml，
   // 可直接渲染，且随 tag 固定不会漂移。
   const logo=`https://raw.githubusercontent.com/${repo}/${encodeURIComponent(tag)}/logo.svg`;
-  return {...productionManifest(manifest,version),packageUrl:`${base}/${manifest.packid}-${version}.oplg`,logo,
-    packageMode:1,
-    packageUrlWindows:`${base}/${manifest.packid}-${version}-windows.oplg`,
-    packageUrlMacos:`${base}/${manifest.packid}-${version}-macos.oplg`,
-    packageUrlLinux:`${base}/${manifest.packid}-${version}-linux.oplg`,
+  const payload={...productionManifest(manifest,version),logo,packageMode:1,
     supportWindows:true,supportMacos:true,supportLinux:true,
     minOToolsVersion:manifest.minOToolsVersion || manifest.minOtoolsVersion,
   };
+  delete payload.packageUrl;
+  for (const target of NATIVE_TARGETS) payload[target.field]=`${base}/${manifest.packid}-${version}-${target.suffix}.oplg`;
+  return payload;
 }
 export async function publishMarket(url,access,payload,fetcher=fetch) {
   const result=await jsonRequest(fetcher,url,{method:'POST',headers:{Authorization:`Bearer ${token(access)}`,'Content-Type':'application/json'},body:JSON.stringify(payload)});

@@ -35,6 +35,12 @@ test('兼容包不在未知架构上默认加载动态库，包含双架构目�
   assert.equal(all.manifest.native.enabled, false);
   assert.equal(all.libraries.length, 6);
 });
+test('六架构发布使用当前市场标准后缀和字段', () => {
+  assert.deepEqual(NATIVE_TARGETS.map((value) => value.suffix), ['windows', 'windows-arm', 'macos-intel', 'macos', 'linux', 'linux-arm']);
+  assert.deepEqual(NATIVE_TARGETS.map((value) => value.field), ['packageUrlWindows', 'packageUrlWindowsArm', 'packageUrlMacosIntel', 'packageUrlMacos', 'packageUrlLinux', 'packageUrlLinuxArm']);
+  for (const target of NATIVE_TARGETS) assert.equal(packageSpec({}, target.id).suffix, target.suffix);
+});
+
 test('缺导出、未知平台或伪造二进制均拒绝', () => {
   assert.throws(() => inspectNative(Buffer.from('fake dll'), 'windows-x64'));
   const missing = library('linux-arm64'); missing.fill(0, 100);
