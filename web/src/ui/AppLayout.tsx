@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { useRuntime, useRuntimeState } from '../app/context';
 import { getSkin, SKINS, applySkin } from '../theme/skins';
 import { applyTokens } from '../theme/tokens';
+import { syncTempHostThemeBackground } from '../bridge/host-theme';
 import { setLocale, t, useLocale } from '../i18n';
 import { Visualizer } from '../viz/Visualizer';
 import type { VizMode } from '../viz/registry';
@@ -24,7 +25,7 @@ export function AppLayout({ route }: { route: 'panel' | 'main' }) {
   const [liveMode, setLiveMode] = useState<VizMode>(settings.vizMode);
   const left = useIdleFold({ idleMs: 10000, leaveMs: 3000, pinned: ui.libraryPinned, sticky: status.picking });
   const right = useIdleFold({ idleMs: 10000, leaveMs: 10000, pinned: ui.panelsPinned, sticky: ui.sidePanel === 'lyrics' });
-  useEffect(() => { applySkin(skin); applyTokens(); }, [skin]);
+  useEffect(() => { applySkin(skin); applyTokens(); syncTempHostThemeBackground(skin.bg); }, [skin]);
   useEffect(() => { setLocale(settings.lang); }, [settings.lang]);
   useEffect(() => { setLiveMode(settings.vizMode); }, [settings.vizMode]);
   useEffect(() => { if (ui.libraryOpen) left.notifyEnter(); }, [ui.libraryOpen]);

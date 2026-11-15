@@ -14,7 +14,7 @@ const route = routeFromLocation(window.location.search);
 if (route === 'lyrics') document.documentElement.dataset.lyricsWindow = 'true';
 applySkin(SKINS[0]);
 applyTokens();
-installTempDarkHostTheme();
+installTempDarkHostTheme(SKINS[0].bg);
 const runtime = createRuntime({ route });
 createRoot(document.getElementById('root')!).render(<RuntimeProvider runtime={runtime}>
   {route === 'lyrics' ? <LyricsWindow /> : <AppLayout route={route} />}

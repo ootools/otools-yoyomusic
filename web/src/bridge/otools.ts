@@ -71,7 +71,7 @@ export interface OToolsHostReadFilePayload {
 
 export interface OToolsAPI {
   pageMode?(): OToolsPageMode;
-  setTempHostTheme?(theme: OToolsTempHostTheme): Promise<void>;
+  setTempHostTheme?(theme: OToolsTempHostTheme, options?: { background?: string | null }): Promise<void>;
   dialog?: OToolsDialogAPI;
   listHostDir?(path: string): Promise<OToolsHostDirEntry[]>;
   readHostFile?(path: string): Promise<OToolsHostReadFilePayload>;
