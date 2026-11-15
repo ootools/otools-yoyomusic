@@ -41,7 +41,7 @@
     "桌面歌词"
   ],
   "summary": "本地音乐播放器：曲库/歌单/歌词/桌面歌词/9 种音频可视化/均衡器",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minOtoolsVersion": "0.9.0",
   "permissions": [],
   "devUrl": "http://127.0.0.1:6482",
