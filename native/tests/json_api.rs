@@ -23,7 +23,7 @@ fn health_reports_the_plugin_version_and_actual_rust_platform() {
             "ok": true,
             "data": {
                 "id": "otools-yoyomusic",
-                "version": "0.1.2",
+                "version": "0.1.3",
                 "os": std::env::consts::OS,
                 "arch": std::env::consts::ARCH,
                 "capabilities": ["lyrics.parse"]

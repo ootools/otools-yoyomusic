@@ -85,6 +85,16 @@ test('市场使用六平台含lib包的精确架构URL，不引用未发布通�
   assert.equal(payload.packageUrl, undefined);
 });
 
+test('工作区插件标签与版本和插件身份一致，兼容历史v标签', () => {
+  const manifest = { packid: 'otools-yoyomusic', version: '0.1.3' };
+  const tag = 'plugin-otools-yoyomusic-v0.1.3';
+  assert.equal(releaseMeta(manifest, '', tag).release_tag, tag);
+  assert.equal(releaseMeta(manifest, '', 'v0.1.3').release_tag, 'v0.1.3');
+  assert.throws(() => releaseMeta(manifest, '', 'plugin-other-v0.1.3'));
+  assert.throws(() => releaseMeta(manifest, '', 'plugin-otools-yoyomusic-v0.1.2'));
+  assert.equal(releasePlan({ EVENT_NAME: 'push', RELEASE_SOURCE_TAG: tag }).publish_enabled, true);
+});
+
 test('invalid packid, entry and version are rejected before packaging',()=>{
   assert.throws(()=>releaseMeta({version:'1.0.0'}));
   assert.throws(()=>releaseMeta({packid:'../escape',version:'1.0.0'}));

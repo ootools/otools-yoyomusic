@@ -38,7 +38,7 @@ export function releaseMeta(manifest,override='',tag='') {
   if (typeof version!=='string' || /\s/.test(version) || !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/.test(version)) throw new Error('版本号无效');
   const packid=manifest.packid;
   if (typeof packid!=='string' || packid.length>128 || /\s/.test(packid) || !/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(packid)) throw new Error('packid 无效');
-  if (tag && tag!==`v${version}`) throw new Error('tag 与 plugin.json 版本不一致');
+  if (tag && tag!==`v${version}` && tag!==`plugin-${packid}-v${version}`) throw new Error('tag 与 plugin.json 版本或插件身份不一致');
   return {version,packid,release_tag:tag || `plugin-${packid}-v${version}`};
 }
 /** 同一份生产清单用于包内文件及市场元数据，开发配置保留在源文件中。 */
@@ -66,7 +66,7 @@ function booleanInput(value,fallback) {
 export function releasePlan(env) {
   const event=env.EVENT_NAME || 'workflow_dispatch';
   if (!['push','workflow_dispatch'].includes(event)) throw new Error('不允许此事件发布插件');
-  if (event==='push' && !/^v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/.test(env.RELEASE_SOURCE_TAG || '')) throw new Error('只允许版本标签触发自动发布');
+  if (event==='push' && !/^(?:plugin-[A-Za-z0-9][A-Za-z0-9._-]*-)?v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/.test(env.RELEASE_SOURCE_TAG || '')) throw new Error('只允许版本标签触发自动发布');
   const publish=event==='push' || !booleanInput(env.DRY_RUN,true);
   const market=event==='push'?booleanInput(env.AUTO_PUBLISH_MARKET,false):booleanInput(env.PUBLISH_MARKET,false);
   return {publish_enabled:publish,market_requested:market,market_enabled:publish && market,validate_release:publish || market};

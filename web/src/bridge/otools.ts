@@ -29,6 +29,8 @@ import { pickFromHostTree, type HostBrowsePayload } from './host-file-tree';
 /* ------------------------------------------------------------------ */
 
 export type OToolsLocale = 'zh-CN' | 'en-US';
+export type OToolsPageMode = 'panel' | 'tabs' | 'window';
+export type OToolsTempHostTheme = 'light' | 'dark' | null;
 
 export interface OToolsDialogFilter {
   name: string;
@@ -68,6 +70,8 @@ export interface OToolsHostReadFilePayload {
 }
 
 export interface OToolsAPI {
+  pageMode?(): OToolsPageMode;
+  setTempHostTheme?(theme: OToolsTempHostTheme): Promise<void>;
   dialog?: OToolsDialogAPI;
   listHostDir?(path: string): Promise<OToolsHostDirEntry[]>;
   readHostFile?(path: string): Promise<OToolsHostReadFilePayload>;
@@ -139,6 +143,15 @@ export function detectHost(): OToolsCaps {
       typeof api?.patchPluginLocalState === 'function',
     hostDir: typeof api?.listHostDir === 'function',
   };
+}
+
+/** 宿主实际容器模式；旧宿主/浏览器没有接口时保留独立窗口行为。 */
+export function pageMode(): OToolsPageMode {
+  try {
+    return getOtools()?.pageMode?.() ?? 'window';
+  } catch {
+    return 'window';
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -7,6 +7,7 @@
 - 曲库文件/目录导入、多个歌单、队列顺序、喜欢、历史、专辑/歌手浏览、搜索。
 - 10段均衡器、7预设、4套皮肤、中文/英文、LRC/内嵌歌词、会话恢复。
 - 文件选择使用 **宿主数据的自绘选择树**（多选、盘符/目录导航、路径跳转）；不调用系统原生文件对话框。
+- 使用宿主 `pageMode()` 判断实际容器：panel 隐藏顶栏logo及名称，tabs/独立窗口保留。启动调用 `setTempHostTheme('dark')` 临时使用暗色宿主外壳，离页清除覆盖，不修改用户长期主题；旧宿主缺接口时兼容跳过。
 
 ## 本地开发
 
@@ -57,11 +58,11 @@ YoYoMusic 衍生移植，**AGPL-3.0-or-later**，见 `LICENSE`、`THIRD_PARTY_NO
 
 ## 六目标发布
 
-`v<plugin.json.version>` 标签触发六目标 CI：Windows/macOS/Linux × x64/arm64，各包包含对应架构的真实lib。Windows库使用静态CRT。`v0.1.2` 发布正好六个包：
+`plugin-otools-yoyomusic-v<plugin.json.version>` 标签触发六目标 CI（兼容历史 `v*` 标签）：Windows/macOS/Linux × x64/arm64，各包包含对应架构的真实lib。Windows库使用静态CRT。`0.1.3` 发布正好六个包：
 
-- Windows：`otools-yoyomusic-0.1.2-windows.oplg`（x64）、`-windows-arm.oplg`（ARM64）。
-- macOS：`otools-yoyomusic-0.1.2-macos.oplg`（Apple Silicon）、`-macos-intel.oplg`（Intel）。
-- Linux：`otools-yoyomusic-0.1.2-linux.oplg`（x64）、`-linux-arm.oplg`（ARM64）。
+- Windows：`otools-yoyomusic-0.1.3-windows.oplg`（x64）、`-windows-arm.oplg`（ARM64）。
+- macOS：`otools-yoyomusic-0.1.3-macos.oplg`（Apple Silicon）、`-macos-intel.oplg`（Intel）。
+- Linux：`otools-yoyomusic-0.1.3-linux.oplg`（x64）、`-linux-arm.oplg`（ARM64）。
 
 沿用最新市场的六架构URL字段和 `packageMode=1`，不引用不存在的通用包。各包启用匹配架构的可选native歌词库；完整音乐播放仍通过Web Audio和宿主接口。详情见 `docs/release-six-targets.md`。原生源码位于 `native/`：
 

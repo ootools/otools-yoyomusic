@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { useRuntime } from '../app/context';
+import { pageMode } from '../bridge/otools';
 import { VIZ_MODES, VIZ_HINTS, type VizMode } from '../viz/registry';
 import { t, useLocale } from '../i18n';
 import { IconButton } from './IconButton';
@@ -16,7 +17,7 @@ export function TopBar({ mode, route }: { mode: VizMode; route: 'panel' | 'main'
   return <header className="top-bar" onPointerDown={(event) => {
     if (route === 'main' && event.button === 0 && !(event.target as HTMLElement).closest('button,input')) void nativeWindowCommand('start_dragging');
   }}>
-    <div className="brand"><img src={new URL('../../../logo.svg', import.meta.url).href} alt="" /><strong>{t('app.name')}</strong></div>
+    {pageMode() !== 'panel' && <div className="brand"><img src={new URL('../../../logo.svg', import.meta.url).href} alt="" /><strong>{t('app.name')}</strong></div>}
     <IconButton icon="playlist" label={t('top.library')} active={ui.libraryOpen} onClick={() => runtime.patchUi({ libraryOpen: !ui.libraryOpen })} />
     <div className="top-spacer" />
     <button className="viz-picker" title={`${t(`viz.${mode}`)} · ${VIZ_HINTS[mode]}`} aria-label={t('top.viz')}

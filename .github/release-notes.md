@@ -1,12 +1,11 @@
-# 悠悠乐听 · OTools 独立插件 v0.1.2
+# 悠悠乐听 · OTools 独立插件 0.1.3
 
-- 默认 panel，另开独立主窗口；桌面歌词通过透明、置顶、无边框自定义窗口显示。
-- 布局参考最新版 Go YoYoMusic，Canvas 动效移植自 Tauri 分支，含9种可视化和3D钢琴。
-- 宿主自绘文件/目录选择器，多歌单、队列、喜欢、历史、搜索、专辑/歌手、LRC与内嵌歌词。
-- 10段EQ、7预设、4套皮肤及中文/英文界面。
-- 多窗口音频接管等待旧窗口暂停确认；正常关闭排空写队列，避免并发播放和陈旧状态覆盖。
-- 修正旧macOS runner不可用，六平台使用标准suffix及六个市场URL分发字段。
-- 修复Linux打包绝对输出路径重复拼接；六包均有真实对应架构lib，不发布缺库/伪造平台包。
+本次更新：
+
+- 接入宿主最新 `window.otools.pageMode()`，实际为 `panel` 时隐藏顶栏logo和名称；tabs/独立窗口保留，不再以插件内部路由误判宿主容器。
+- 启动时调用 `window.otools.setTempHostTheme('dark')` 临时使用暗色宿主外壳，离开页面清除覆盖；不修改用户长期主题设置。
+- 旧宿主缺少上述能力时兼容跳过，不影响音乐播放。
+- 发布标签采用工作区规范 `plugin-otools-yoyomusic-v0.1.3`，兼容历史版本标签。
 
 ## 下载
 
@@ -19,10 +18,8 @@
 | Linux | x64 | linux | lib/Linux.so |
 | Linux | ARM64 | linux-arm | lib/Linux.so |
 
-每个包均包含真实对应架构的lib。Windows静态CRT，macOS ad-hoc签名。原生lib提供健康查询、本地歌词解析和安全关闭回执；音频仍通过Web Audio播放，不上传音乐、不新建网络服务。
+每个包均包含真实对应架构lib。Windows静态CRT，macOS ad-hoc签名。原生lib提供健康查询、本地LRC解析和安全关闭回执；音频仍通过Web Audio播放。
 
-## 验证边界
+本地423条前端测试、21条原生FFI/JSON测试和发布脚本测试、严格类型检查及构建验证通过。六平台产物由CI编译并核验OS/CPU、ABI、CRC和SHA256。跨系统真实OTools透明置顶、拖动和后台播放仍须实机验证，不因CI构建而宣称已完成。
 
-本地前端413测试、21原生FFI/JSON测试、构建/发布脚本测试与TypeScript严格检查通过。六平台库经CI编译并校验OS/CPU文件头、ABI导出、CRC/SHA256。跨系统真实OTools透明置顶、拖动和后台播放仍须实机验证；CI构建不等于这部分验收。
-
-源码和许可证随 `.oplg` 的 `source/` 提供，AGPL-3.0-or-later；第三方通知见 `THIRD_PARTY_NOTICES.md`。
+完整对应源码和AGPL-3.0-or-later许可证随 `.oplg` 的 `source/` 提供；PAT/本地配置不进入源码、包或发布日志。

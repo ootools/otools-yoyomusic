@@ -3,7 +3,7 @@ run-name: "YoYoMusic 六目标 · ${{ github.ref_name }}"
 
 on:
   push:
-    tags: ['v*']
+    tags: ['plugin-otools-yoyomusic-v*', 'v*']
   workflow_dispatch:
 
 permissions:
@@ -26,7 +26,7 @@ jobs:
           cache: npm
       - name: Verify version tag
         run: |
-          node --input-type=module -e 'import fs from "node:fs";const m=JSON.parse(fs.readFileSync("plugin.json"));if(process.env.GITHUB_REF_TYPE==="tag" && process.env.GITHUB_REF_NAME!==`v${m.version}`)throw new Error("Tag and manifest versions differ");'
+          node --input-type=module -e 'import fs from "node:fs";import {releaseMeta} from "./scripts/publish-market.mjs";const m=JSON.parse(fs.readFileSync("plugin.json"));if(process.env.GITHUB_REF_TYPE==="tag")releaseMeta(m,"",process.env.GITHUB_REF_NAME);'
       - run: npm ci
       - run: npm test && npm run typecheck
       - run: node --test scripts/*.test.mjs
