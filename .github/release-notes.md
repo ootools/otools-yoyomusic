@@ -1,11 +1,10 @@
-# 悠悠乐听 · OTools 独立插件 0.1.4
+# 悠悠乐听 · OTools 独立插件 0.1.5
 
 本次更新：
 
-- 启动调用 `window.otools.setTempHostTheme('dark', { background: 皮肤.bg })`，除临时暗色外壳外，新增让宿主 TABS 顶栏 / Panel 头部底色跟随当前皮肤（极光/午夜/落日/薄荷四套皮肤的页面底色），消除宿主默认暗色与播放器玻璃拟态色系的割裂；切换皮肤即时联动。
-- 需要 OTools 0.9.4+ 支持背景染色；旧宿主会忽略未知参数，安全降级为只声明明暗主题，不影响音乐播放。
-- 离开页面仍清除本页临时覆盖，不修改用户长期主题设置。
-- 发布标签采用工作区规范 `plugin-otools-yoyomusic-v0.1.4`，兼容历史版本标签。
+- 桌面歌词窗口升级为宿主 `windowType: "overlay"` NSPanel 浮层：可悬浮在任意界面之上（包括 Safari 等其他应用的全屏 Space），显示不抢焦点（不打断当前应用），macOS Dock 不再出现宿主图标；歌词窗拖动、锁定、鼠标穿透行为不变。
+- 浮层是 macOS 专属行为；需要包含 NSPanel 浮层支持的新版 OTools 宿主生效。旧宿主会忽略 `windowType` 字段，安全降级为普通置顶悬浮窗（`alwaysOnTop` 继续兜底），不影响其他功能。
+- 发布标签采用工作区规范 `plugin-otools-yoyomusic-v0.1.5`，兼容历史版本标签。
 
 ## 下载
 

@@ -1,7 +1,7 @@
 {
   "name": "otools-yoyomusic",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "悠悠乐听 —— OTools 本地音乐播放器插件（曲库/歌单/歌词/桌面歌词/9 种音频可视化/均衡器）",
   "scripts": {
