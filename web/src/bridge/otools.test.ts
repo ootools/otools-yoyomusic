@@ -523,7 +523,7 @@ describe('openPluginWindow', () => {
     });
   });
 
-  it('lyrics：880×110 桌面歌词规格（transparent/alwaysOnTop/skipTaskbar/shadow:false）', async () => {
+  it('lyrics：880×110 桌面歌词规格（transparent/alwaysOnTop/skipTaskbar/shadow:false，overlay 浮层）', async () => {
     const { invoke } = installFakeHost({ otools: {}, tauriInvoke: () => [] });
     await openPluginWindow('yoyomusic-lyrics');
     expect(invoke).toHaveBeenNthCalledWith(2, 'open_custom_plugin_window', {
@@ -539,6 +539,7 @@ describe('openPluginWindow', () => {
         resizable: false,
         skipTaskbar: true,
         alwaysOnTop: true,
+        windowType: 'overlay',
       },
     });
   });

@@ -413,6 +413,9 @@ const WINDOW_SPECS = {
       resizable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
+      // NSPanel 式浮层：悬浮任意界面（含全屏应用）之上，不抢焦点、不出 Dock。
+      // 旧宿主忽略未知字段，退化为普通置顶悬浮窗。
+      windowType: 'overlay',
     },
   },
 } as const;
