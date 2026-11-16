@@ -20,7 +20,6 @@ export function AppLayout({ route }: { route: 'panel' | 'main' }) {
   const status = useRuntimeState();
   const settings = useStore((state) => state.settings);
   const ui = useStore((state) => state.ui);
-  const playing = useStore((state) => state.playback.playing);
   const skin = getSkin(settings.skin) ?? SKINS[0];
   const [liveMode, setLiveMode] = useState<VizMode>(settings.vizMode);
   const left = useIdleFold({ idleMs: 10000, leaveMs: 3000, pinned: ui.libraryPinned, sticky: status.picking });
@@ -49,7 +48,6 @@ export function AppLayout({ route }: { route: 'panel' | 'main' }) {
       onPointerEnter={left.notifyEnter} onPointerLeave={left.notifyLeave}><LeftRail /></aside>}
     {ui.libraryOpen && left.folded && <button className="rail-reveal" aria-label={t('top.library')} onPointerEnter={left.notifyEnter} onClick={left.notifyEnter} />}
     {ui.sidePanel && !right.folded && <aside className="right-rail glass-panel" aria-label={t(`panel.${ui.sidePanel}`)}><RightRail /></aside>}
-    <div className="viz-status" aria-hidden="true"><span className={playing ? 'status-dot live' : 'status-dot'} />{playing ? t('viz.live') : 'YOYO MUSIC'}<span className="viz-status-line" />{t(`viz.${liveMode}`)}</div>
     {status.error && <div className="error-toast" role="alert"><span>{status.error}</span><IconButton icon="close" label={t('common.close')} size={26} onClick={runtime.clearError} /></div>}
   </div>;
 }

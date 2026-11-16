@@ -83,8 +83,10 @@ export function drawSpectrum({ context, width, height, frame, palette, state, dt
   const count = frame.bands.length;
   const gap = Math.max(1, (width / count) * 0.24);
   const barWidth = Math.max(1, (width - gap * (count - 1)) / count);
-  const floor = height * 0.82;
-  const reach = floor - 6;
+  // floor 贴近画布底部（进度条上方），reach 封顶保证柱体上方留出约 1/3 空间；
+  // 倒影钳制在画布内，不再渗到播放进度条下面。
+  const floor = height * 0.9;
+  const reach = Math.min(floor - 6, height * 0.6);
 
   const gradient = context.createLinearGradient(0, floor, 0, floor - reach);
   gradient.addColorStop(0, palette.b);
@@ -104,8 +106,9 @@ export function drawSpectrum({ context, width, height, frame, palette, state, dt
     context.fill();
 
     // Reflection under the floor keeps the deck feeling like glass.
+    const reflection = Math.min(barHeight * 0.35, height - floor - 4);
     context.globalAlpha = 0.16;
-    roundedRect(context, x, floor + 2, barWidth, barHeight * 0.35, Math.min(barWidth / 2, 3));
+    roundedRect(context, x, floor + 2, barWidth, reflection, Math.min(barWidth / 2, 3));
     context.fill();
 
     const peak = Math.max(value, state.peaks[index] - dt * 0.55);

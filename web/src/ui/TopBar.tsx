@@ -20,12 +20,11 @@ export function TopBar({ mode, route }: { mode: VizMode; route: 'panel' | 'main'
     {pageMode() !== 'panel' && <div className="brand"><img src={new URL('../../../logo.svg', import.meta.url).href} alt="" /><strong>{t('app.name')}</strong></div>}
     <IconButton icon="playlist" label={t('top.library')} active={ui.libraryOpen} onClick={() => runtime.patchUi({ libraryOpen: !ui.libraryOpen })} />
     <div className="top-spacer" />
-    <button className="viz-picker" title={`${t(`viz.${mode}`)} · ${VIZ_HINTS[mode]}`} aria-label={t('top.viz')}
-      onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ x: rect.left, y: rect.bottom + 5 }); }}>
-      <IconButtonContent mode={mode} /><span>{t(`viz.${mode}`)}</span><small>⌄</small>
-    </button>
-    <div className="top-spacer" />
     <div className="panel-buttons">
+      <button className="viz-picker" title={`${t(`viz.${mode}`)} · ${VIZ_HINTS[mode]}`} aria-label={t('top.viz')}
+        onClick={(event) => { const rect = event.currentTarget.getBoundingClientRect(); setMenu({ x: rect.left, y: rect.bottom + 5 }); }}>
+        <IconButtonContent mode={mode} /><span>{t(`viz.${mode}`)}</span><small>⌄</small>
+      </button>
       {(['eq', 'lyrics', 'skins', 'about'] as const).map((panel) => <IconButton key={panel} icon={panel} label={t(`panel.${panel}`)} active={ui.sidePanel === panel}
         onClick={() => runtime.patchUi({ sidePanel: ui.sidePanel === panel ? null : panel })} />)}
       <span className="toolbar-divider" />

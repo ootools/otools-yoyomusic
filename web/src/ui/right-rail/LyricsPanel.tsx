@@ -14,7 +14,7 @@ export function LyricsPanel() {
   useEffect(() => { activeRef.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }); }, [active]);
   return <div className="lyrics-panel">
     <div className="lyrics-description"><p>{t('lyrics.description')}</p>
-      <IconButton icon="lyrics-screen" label={t('top.desktop')} size={28} radius={7} onClick={() => { void runtime.openWindow('yoyomusic-lyrics'); }} />
+      <IconButton icon="lyrics-screen" label={t('top.desktop')} size={28} radius={7} onClick={() => { void (async () => { await runtime.openWindow('yoyomusic-lyrics'); runtime.patchUi({ sidePanel: null }); })(); }} />
     </div>
     <div className="panel-divider" />
     <div className="lyric-lines">{lyrics.lines.length ? lyrics.lines.map((line, index) => <p key={`${line.timeMs}-${index}`}
