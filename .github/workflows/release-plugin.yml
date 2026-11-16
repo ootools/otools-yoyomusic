@@ -132,3 +132,20 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --verify-tag --title "YoYoMusic $GITHUB_REF_NAME" --notes-file .github/release-notes.md
           fi
           gh release upload "$GITHUB_REF_NAME" dist-release/*.oplg dist-release/plugin.json dist-release/logo.svg dist-release/SHA256SUMS dist-release/release-assets.json --clobber
+      # 市场开关：tag 推送且仓变量 OTOOLS_PUBLISH_MARKET=true 才提交。
+      # 认证与提交在同一个 step 内完成，凭据不经过 job outputs 或 artifact。
+      - name: 授权并提交市场
+        if: ${{ github.ref_type == 'tag' && vars.OTOOLS_PUBLISH_MARKET == 'true' }}
+        env:
+          AUTH_MODE: pat
+          XYCLOUD_PAT: ${{ secrets.XYCLOUD_PAT }}
+          XYCLOUD_PUBLISHER_ID: ${{ vars.XYCLOUD_PUBLISHER_ID }}
+          OTOOLS_MARKET_API: ${{ vars.OTOOLS_MARKET_API || 'https://otools-api.lingyun.net/api/v1/otools/plugin/publish' }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          PLUGIN_MANIFEST: dist-release/plugin.json
+          # 与 release-packages.mjs 的六平台分包对应：上报 6 个 packageUrl* 并置 packageMode=1。
+          PLATFORM_PACKAGES: "true"
+        run: |
+          set -euo pipefail
+          export RELEASE_VERSION="$(node -p "require('./dist-release/plugin.json').version")"
+          node scripts/publish-market.mjs
