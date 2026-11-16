@@ -28,6 +28,15 @@
     "alwaysOnTop": true
   },
   "entry": "dist/index.html",
+  "fileAssociations": [
+    { "ext": "mp3", "desc": "MP3 音频", "mime": "audio/mpeg" },
+    { "ext": "wav", "desc": "WAV 音频", "mime": "audio/wav" },
+    { "ext": "flac", "desc": "FLAC 无损音频", "mime": "audio/flac" },
+    { "ext": "ogg", "desc": "OGG 音频", "mime": "audio/ogg" },
+    { "ext": "aac", "desc": "AAC 音频", "mime": "audio/aac" },
+    { "ext": "m4a", "desc": "M4A 音频", "mime": "audio/mp4" },
+    { "ext": "opus", "desc": "Opus 音频", "mime": "audio/opus" }
+  ],
   "key": [
     "yoyomusic",
     "悠悠乐听",
