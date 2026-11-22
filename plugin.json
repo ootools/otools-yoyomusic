@@ -89,5 +89,6 @@
   "minOtoolsVersion": "0.9.0",
   "permissions": [],
   "devUrl": "http://127.0.0.1:6482",
-  "quickDev": true
+  "quickDev": true,
+  "openSourceUrl": "https://github.com/ootools/otools-yoyomusic"
 }
